@@ -5,21 +5,42 @@ import { supabase } from "@/lib/supabaseClient";
 
 type Store = { id: number; name: string };
 
+type CommissionRule = {
+  level: "meta" | "supermeta" | "megameta";
+  min_pct: number;
+  percent: number;
+};
+
 function monthKey(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
 }
+
 function daysInMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 }
+
 function formatBRL(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return v.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
+
 function statusColor(pct: number) {
   if (pct >= 130) return "bg-blue-100 text-blue-900 border-blue-200";
   if (pct >= 120) return "bg-purple-100 text-purple-900 border-purple-200";
   if (pct >= 100) return "bg-green-100 text-green-900 border-green-200";
   if (pct >= 80) return "bg-yellow-100 text-yellow-900 border-yellow-200";
   return "bg-red-100 text-red-900 border-red-200";
+}
+
+function commissionLabel(pct: number) {
+  if (pct >= 130) return { icon: "🚀", label: "Megameta" };
+  if (pct >= 120) return { icon: "⭐", label: "Supermeta" };
+  if (pct >= 100) return { icon: "✅", label: "Meta" };
+  return { icon: "❌", label: "Sem meta" };
 }
 
 export default function GerentePage() {
@@ -32,36 +53,47 @@ export default function GerentePage() {
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [achieved, setAchieved] = useState<Record<string, number>>({});
 
+  const [sellerDays, setSellerDays] = useState<
+    {
+      seller_id: string;
+      name: string;
+      folgas: number;
+      faltas: number;
+      trabalhados: number;
+    }[]
+  >([]);
+
+  const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
+
+  const [sellerTargets, setSellerTargets] = useState<
+    {
+      seller_id: string;
+      name: string;
+      meta: number;
+      realizado: number;
+      pct: number;
+      commission: number;
+      commissionPct: number;
+      level: { icon: string; label: string };
+    }[]
+  >([]);
+
   const mKey = monthKey(month);
+  const diasMes = daysInMonth(month);
 
-  const totalTarget = useMemo(
-    () => Object.values(targets).reduce((a, b) => a + (b || 0), 0),
-    [targets]
-  );
-  const totalAchieved = useMemo(
-    () => Object.values(achieved).reduce((a, b) => a + (b || 0), 0),
-    [achieved]
-  );
-  const totalPct = totalTarget > 0 ? (totalAchieved / totalTarget) * 100 : 0;
-
-  // 🔒 Proteção da rota (somente gerente)
+  // 🔒 Proteção
   useEffect(() => {
     (async () => {
-      setLoading(true);
-
       const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) {
-        window.location.href = "/";
-        return;
-      }
+      if (!sess.session) return (window.location.href = "/");
 
-      const { data: prof, error } = await supabase
+      const { data: prof } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", sess.session.user.id)
         .single();
 
-      if (error || !prof || prof.role !== "gerente") {
+      if (!prof || prof.role !== "gerente") {
         setRoleOk(false);
         setLoading(false);
         return;
@@ -79,8 +111,22 @@ export default function GerentePage() {
     })();
   }, []);
 
-  // 📊 Carregar metas e vendas do mês
+  // 📊 Carregar dados
   async function loadMonthData() {
+    const start = mKey;
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1)
+      .toISOString()
+      .slice(0, 10);
+
+    // regras de comissão
+    const { data: cr } = await supabase
+      .from("commission_rules")
+      .select("*")
+      .order("min_pct");
+
+    setCommissionRules((cr as CommissionRule[]) || []);
+
+    // metas
     const { data: t } = await supabase
       .from("store_targets")
       .select("store_id,period,target_value")
@@ -92,14 +138,10 @@ export default function GerentePage() {
     });
     setTargets(tMap);
 
-    const start = mKey;
-    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1)
-      .toISOString()
-      .slice(0, 10);
-
+    // vendas
     const { data: s } = await supabase
       .from("sales")
-      .select("store_id,period,amount")
+      .select("seller_id,store_id,period,amount")
       .gte("sale_date", start)
       .lt("sale_date", end);
 
@@ -109,190 +151,177 @@ export default function GerentePage() {
       aMap[k] = (aMap[k] || 0) + Number(r.amount || 0);
     });
     setAchieved(aMap);
+
+    // dias
+    const { data: sd } = await supabase
+      .from("seller_days")
+      .select("seller_id,status,profiles(name)")
+      .gte("day", start)
+      .lt("day", end);
+
+    const dayMap: Record<
+      string,
+      { name: string; folgas: number; faltas: number }
+    > = {};
+
+    (sd as any[] | null)?.forEach((r) => {
+      const id = r.seller_id;
+      if (!dayMap[id]) {
+        dayMap[id] = {
+          name: r.profiles?.name || "Vendedora",
+          folgas: 0,
+          faltas: 0,
+        };
+      }
+      if (r.status === "folga") dayMap[id].folgas++;
+      if (r.status === "falta") dayMap[id].faltas++;
+    });
+
+    const sellersArr = Object.entries(dayMap).map(([seller_id, v]) => ({
+      seller_id,
+      name: v.name,
+      folgas: v.folgas,
+      faltas: v.faltas,
+      trabalhados: Math.max(diasMes - v.folgas - v.faltas, 0),
+    }));
+
+    setSellerDays(sellersArr);
+
+    // 🎯 comissão
+    const sellerCalc: Record<
+      string,
+      { name: string; dias: number; meta: number; realizado: number }
+    > = {};
+
+    sellersArr.forEach((s) => {
+      sellerCalc[s.seller_id] = {
+        name: s.name,
+        dias: s.trabalhados,
+        meta: 0,
+        realizado: 0,
+      };
+    });
+
+    (s as any[] | null)?.forEach((sale) => {
+      if (sellerCalc[sale.seller_id]) {
+        sellerCalc[sale.seller_id].realizado += Number(sale.amount || 0);
+      }
+    });
+
+    for (const sellerId in sellerCalc) {
+      let meta = 0;
+      for (const st of stores) {
+        for (const period of ["manha", "noite"] as const) {
+          const metaMensal =
+            tMap[`${st.id}_${period}`] || 0;
+          meta += (metaMensal / diasMes) * sellerCalc[sellerId].dias;
+        }
+      }
+      sellerCalc[sellerId].meta = meta;
+    }
+
+    setSellerTargets(
+      Object.entries(sellerCalc).map(([id, v]) => {
+        const pct = v.meta > 0 ? (v.realizado / v.meta) * 100 : 0;
+
+        const rule =
+          commissionRules
+            .slice()
+            .reverse()
+            .find((r) => pct >= r.min_pct) || null;
+
+        const percent = rule ? rule.percent : 0;
+        const commission = v.realizado * (percent / 100);
+
+        return {
+          seller_id: id,
+          name: v.name,
+          meta: v.meta,
+          realizado: v.realizado,
+          pct,
+          commission,
+          commissionPct: percent,
+          level: commissionLabel(pct),
+        };
+      })
+    );
   }
 
   useEffect(() => {
     if (roleOk) loadMonthData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleOk, mKey]);
 
-  function setTarget(storeId: number, period: "manha" | "noite", value: number) {
-    setTargets((prev) => ({ ...prev, [`${storeId}_${period}`]: value }));
-  }
-
-  // 💾 Salvar metas no Supabase
-  async function saveTargets() {
-    const rows: any[] = [];
-
-    for (const st of stores) {
-      for (const period of ["manha", "noite"] as const) {
-        const v = Number(targets[`${st.id}_${period}`] || 0);
-        rows.push({
-          month: mKey,
-          store_id: st.id,
-          period,
-          target_value: v,
-        });
-      }
-    }
-
-    const { error } = await supabase
-      .from("store_targets")
-      .upsert(rows, { onConflict: "month,store_id,period" });
-
-    if (error) {
-      alert("Erro ao salvar metas: " + error.message);
-    } else {
-      alert("Metas salvas com sucesso!");
-    }
+  async function saveCommissionRule(
+    level: string,
+    percent: number
+  ) {
+    await supabase
+      .from("commission_rules")
+      .update({ percent })
+      .eq("level", level);
 
     await loadMonthData();
   }
 
   if (loading) return <div className="p-6">Carregando…</div>;
-  if (roleOk === false)
-    return <div className="p-6">Acesso negado: apenas gerente.</div>;
+  if (roleOk === false) return <div className="p-6">Acesso negado</div>;
 
   return (
     <main className="min-h-screen p-6 space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Dashboard da Gerente</h1>
-          <p className="opacity-70 text-sm">
-            Metas por loja/período + total geral
-          </p>
-        </div>
+      <h1 className="text-2xl font-semibold">Dashboard da Gerente</h1>
 
-        <div className="flex items-center gap-3">
-          <input
-            className="border rounded-lg p-2"
-            type="month"
-            value={`${month.getFullYear()}-${String(
-              month.getMonth() + 1
-            ).padStart(2, "0")}`}
-            onChange={(e) => {
-              const [y, m] = e.target.value.split("-").map(Number);
-              setMonth(new Date(y, m - 1, 1));
-            }}
-          />
-          <button
-            className="border rounded-lg px-3 py-2"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/";
-            }}
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
-      <section className={`border rounded-2xl p-4 ${statusColor(totalPct)}`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm opacity-80">Total do mês (3 lojas)</div>
-            <div className="text-xl font-semibold">
-              {formatBRL(totalAchieved)} / {formatBRL(totalTarget)}
-            </div>
-          </div>
-          <div className="text-sm">
-            <b>{totalPct.toFixed(1)}%</b> do alvo
-          </div>
-        </div>
-      </section>
-
+      {/* 🔧 REGRAS DE COMISSÃO */}
       <section className="border rounded-2xl p-4">
-        <div className="font-semibold mb-2">Legenda</div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
-          <div className="border rounded-lg p-2 bg-red-100">Risco (&lt;80%)</div>
-          <div className="border rounded-lg p-2 bg-yellow-100">
-            Atenção (80–99%)
-          </div>
-          <div className="border rounded-lg p-2 bg-green-100">
-            Meta (100–119%)
-          </div>
-          <div className="border rounded-lg p-2 bg-purple-100">
-            Supermeta (120–129%)
-          </div>
-          <div className="border rounded-lg p-2 bg-blue-100">
-            Megameta (130%+)
-          </div>
+        <div className="font-semibold mb-2">Regras de comissão (%)</div>
+
+        <div className="grid gap-2 text-sm">
+          {commissionRules.map((r) => (
+            <div
+              key={r.level}
+              className="flex items-center justify-between border rounded-lg p-2"
+            >
+              <span>
+                {r.level === "meta" && "✅ Meta"}
+                {r.level === "supermeta" && "⭐ Supermeta"}
+                {r.level === "megameta" && "🚀 Megameta"}
+              </span>
+
+              <input
+                type="number"
+                step="0.1"
+                className="w-20 border rounded p-1 text-right"
+                value={r.percent}
+                onChange={(e) =>
+                  saveCommissionRule(r.level, Number(e.target.value))
+                }
+              />
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="border rounded-2xl p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold">Metas por loja e período</div>
-          <button
-            className="bg-black text-white rounded-lg px-3 py-2"
-            onClick={saveTargets}
-          >
-            Salvar metas
-          </button>
-        </div>
+      {/* 💰 COMISSÃO */}
+      <section className="border rounded-2xl p-4">
+        <div className="font-semibold mb-2">Comissão por vendedora</div>
 
-        <div className="text-sm opacity-70">
-          Meta diária = <b>meta mensal ÷ {daysInMonth(month)} dias</b>
-        </div>
-
-        <div className="grid gap-3">
-          {stores.map((st) => (
-            <div key={st.id} className="border rounded-2xl p-4">
-              <div className="text-lg font-semibold mb-3">{st.name}</div>
-
-              <div className="grid md:grid-cols-2 gap-3">
-                {(["manha", "noite"] as const).map((period) => {
-                  const key = `${st.id}_${period}`;
-                  const t = Number(targets[key] || 0);
-                  const a = Number(achieved[key] || 0);
-                  const pct = t > 0 ? (a / t) * 100 : 0;
-                  const daily = t / daysInMonth(month);
-
-                  return (
-                    <div
-                      key={key}
-                      className={`border rounded-2xl p-4 ${statusColor(
-                        pct
-                      )}`}
-                    >
-                      <div className="flex justify-between">
-                        <b>{period === "manha" ? "Manhã" : "Noite"}</b>
-                        <span>{pct.toFixed(1)}%</span>
-                      </div>
-
-                      <div className="mt-2 text-sm">
-                        <div>
-                          <b>Realizado:</b> {formatBRL(a)}
-                        </div>
-                        <div>
-                          <b>Meta:</b> {formatBRL(t)}{" "}
-                          <span className="opacity-70">
-                            (≈ {formatBRL(daily)}/dia)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-3">
-                        <label className="text-sm block mb-1">
-                          Editar meta mensal
-                        </label>
-                        <input
-                          className="w-full border rounded-lg p-2"
-                          type="number"
-                          step="0.01"
-                          value={Number.isFinite(t) ? t : 0}
-                          onChange={(e) =>
-                            setTarget(
-                              st.id,
-                              period,
-                              Number(e.target.value || 0)
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+        <div className="grid gap-2 text-sm">
+          {sellerTargets.map((s) => (
+            <div
+              key={s.seller_id}
+              className={`border rounded-lg p-2 ${statusColor(
+                s.pct
+              )}`}
+            >
+              <div className="font-medium">{s.name}</div>
+              <div className="mt-1">
+                <div><b>Meta:</b> {formatBRL(s.meta)}</div>
+                <div><b>Realizado:</b> {formatBRL(s.realizado)}</div>
+                <div><b>Atingimento:</b> {s.pct.toFixed(1)}%</div>
+                <div>
+                  <b>Comissão:</b>{" "}
+                  {s.level.icon} {s.level.label} —{" "}
+                  {s.commissionPct}% → {formatBRL(s.commission)}
+                </div>
               </div>
             </div>
           ))}

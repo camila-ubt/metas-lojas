@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
@@ -8,52 +8,6 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // 🔹 FUNÇÃO CENTRAL DE REDIRECIONAMENTO
-  async function routeByRole() {
-    const { data } = await supabase.auth.getSession();
-    const session = data.session;
-    if (!session) return;
-
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
-
-    if (prof?.role === "gerente") {
-      window.location.href = "/gerente";
-    } else {
-      setMsg("Logada como vendedora.");
-      // futuramente: window.location.href = "/vendedora";
-    }
-  }
-
-  // 🔹 AO ABRIR A PÁGINA, VERIFICA SE JÁ ESTÁ LOGADA
-  useEffect(() => {
-    routeByRole();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) routeByRole();
-    });
-
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  async function signUp() {
-    setLoading(true);
-    setMsg(null);
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    setLoading(false);
-    setMsg(error ? error.message : "Conta criada! Agora faça login.");
-  }
 
   async function signIn() {
     setLoading(true);
@@ -71,8 +25,21 @@ export default function Home() {
       return;
     }
 
-    setMsg("Login ok! Redirecionando…");
-    await routeByRole(); // ✅ GARANTE REDIRECIONAMENTO ONLINE
+    // 🔑 SEMPRE redireciona
+    window.location.href = "/redirect";
+  }
+
+  async function signUp() {
+    setLoading(true);
+    setMsg(null);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    setLoading(false);
+    setMsg(error ? error.message : "Conta criada! Faça login.");
   }
 
   return (
@@ -86,7 +53,6 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="email@exemplo.com"
           />
         </div>
 
@@ -97,7 +63,6 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="********"
           />
         </div>
 
