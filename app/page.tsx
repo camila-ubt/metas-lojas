@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
@@ -8,6 +8,37 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function goIfLogged() {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+      if (!session) return;
+
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+
+      if (prof?.role === "gerente") {
+        window.location.href = "/gerente";
+      } else {
+        setMsg("Logada como vendedora.");
+        // quando criarmos, você pode redirecionar para "/vendedora"
+      }
+    }
+
+    goIfLogged();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) goIfLogged();
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   async function signUp() {
     setLoading(true);
@@ -20,12 +51,9 @@ export default function Home() {
   async function signIn() {
     setLoading(true);
     setMsg(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    setMsg(error ? error.message : "Login realizado com sucesso!");
+    setMsg(error ? error.message : "Login ok! Redirecionando…");
   }
 
   return (
@@ -77,3 +105,4 @@ export default function Home() {
     </main>
   );
 }
+
