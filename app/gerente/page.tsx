@@ -155,80 +155,15 @@ export default function GerentePage() {
         </div>
       </header>
 
-      <section className="border p-4 rounded-xl space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-semibold">Regras de Comissão (%)</h2>
-          <button
-            className="bg-black text-white px-3 py-1 rounded"
-            onClick={saveRules}
-          >
-            Salvar
-          </button>
-        </div>
-        <div className="grid gap-3">
-          {rules.map((r, i) => (
-            <div key={i} className="grid md:grid-cols-4 gap-3 text-sm items-center">
-              <input
-                className="border p-2 rounded"
-                placeholder="Emoji"
-                value={r.emoji || ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].emoji = val;
-                    return copy;
-                  });
-                }}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="Label"
-                value={r.label || ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].label = val;
-                    return copy;
-                  });
-                }}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="Mínimo %"
-                inputMode="decimal"
-                step="any"
-                value={r.min_pct?.toString().replace(".", ",") || ""}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value.replace(",", "."));
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].min_pct = isNaN(val) ? 0 : val;
-                    return copy;
-                  });
-                }}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="% Comissão"
-                inputMode="decimal"
-                step="any"
-                value={r.percent?.toString().replace(".", ",") || ""}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value.replace(",", "."));
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].percent = isNaN(val) ? 0 : val;
-                    return copy;
-                  });
-                }}
-              />
-            </div>
-          ))}
-        </div>
+      {/* Regras de meta no topo */}
+      <section className="border rounded-2xl p-4">
+        <h2 className="text-lg font-semibold mb-2">Regras de Meta</h2>
+        <p className="text-sm opacity-70">
+          A meta mensal de cada loja e período é definida manualmente. A meta diária é calculada dividindo o valor da meta pelo número de dias do mês.
+        </p>
       </section>
 
+      {/* Metas das vendedoras por loja */}
       <section className={`border rounded-2xl p-4 ${statusColor(totalPct)}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -298,6 +233,81 @@ export default function GerentePage() {
                   );
                 })}
               </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Regras de comissão no final */}
+      <section className="border p-4 rounded-xl space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="font-semibold">Regras de Comissão (%)</h2>
+          <button
+            className="bg-black text-white px-3 py-1 rounded"
+            onClick={saveRules}
+          >
+            Salvar
+          </button>
+        </div>
+        <div className="grid gap-3">
+          {rules.map((r, i) => (
+            <div key={i} className="grid md:grid-cols-4 gap-3 text-sm items-center">
+              <input
+                className="border p-2 rounded"
+                placeholder="Emoji"
+                value={r.emoji || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].emoji = val;
+                    return copy;
+                  });
+                }}
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="Label"
+                value={r.label || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].label = val;
+                    return copy;
+                  });
+                }}
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="Mínimo %"
+                inputMode="decimal"
+                step="any"
+                value={r.min_pct?.toString().replace(".", ",") || ""}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value.replace(",", "."));
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].min_pct = isNaN(val) ? 0 : val;
+                    return copy;
+                  });
+                }}
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="% Comissão"
+                inputMode="decimal"
+                step="any"
+                value={r.percent?.toString().replace(".", ",") || ""}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value.replace(",", "."));
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].percent = isNaN(val) ? 0 : val;
+                    return copy;
+                  });
+                }}
+              />
             </div>
           ))}
         </div>
