@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "git add . && git commit -m \"Auto: atualização\" && git push"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
@@ -25,3 +26,4 @@
     "typescript": "^5"
   }
 }
+
