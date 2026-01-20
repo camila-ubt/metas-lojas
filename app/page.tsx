@@ -9,6 +9,7 @@ export default function Home() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // 👉 LOGIN
   async function signIn() {
     setLoading(true);
     setMsg(null);
@@ -18,19 +19,19 @@ export default function Home() {
       password,
     });
 
-     console.log("SESSION:", data.session); 
-     
     if (error || !data.session) {
       setLoading(false);
       setMsg(error?.message || "Erro ao logar");
       return;
     }
 
-    // 🔑 BUSCA O PROFILE IMEDIATAMENTE
+    const userId = data.session.user.id;
+
+    // 👇 Buscar perfil pelo ID
     const { data: prof, error: profError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", data.session.user.id)
+      .eq("id", userId)
       .single();
 
     setLoading(false);
@@ -41,7 +42,7 @@ export default function Home() {
       return;
     }
 
-    // 🚀 REDIRECIONA DIRETO
+    // 👇 Redirecionamento com base no papel
     if (prof.role === "gerente") {
       window.location.href = "/gerente";
     } else {
@@ -49,6 +50,7 @@ export default function Home() {
     }
   }
 
+  // 👉 CADASTRO
   async function signUp() {
     setLoading(true);
     setMsg(null);
@@ -59,7 +61,7 @@ export default function Home() {
     });
 
     setLoading(false);
-    setMsg(error ? error.message : "Conta criada! Faça login.");
+    setMsg(error ? error.message : "Conta criada! Verifique seu email.");
   }
 
   return (
@@ -73,6 +75,7 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            placeholder="email@exemplo.com"
           />
         </div>
 
@@ -83,6 +86,7 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            placeholder="********"
           />
         </div>
 
@@ -106,7 +110,7 @@ export default function Home() {
           </button>
         </div>
 
-        {msg && <p className="text-sm text-center">{msg}</p>}
+        {msg && <p className="text-sm text-center text-red-500">{msg}</p>}
       </div>
     </main>
   );

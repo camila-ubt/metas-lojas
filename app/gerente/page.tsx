@@ -1,33 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Store = { id: number; name: string };
-
-type CommissionRule = {
-  level: "meta" | "supermeta" | "megameta";
-  min_pct: number;
-  percent: number;
-};
+type CommissionRule = { level: string; min_pct: number; percent: number };
 
 function monthKey(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
 }
-
 function daysInMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 }
-
 function formatBRL(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
-
 function statusColor(pct: number) {
   if (pct >= 130) return "bg-blue-100 text-blue-900 border-blue-200";
   if (pct >= 120) return "bg-purple-100 text-purple-900 border-purple-200";
@@ -35,7 +22,6 @@ function statusColor(pct: number) {
   if (pct >= 80) return "bg-yellow-100 text-yellow-900 border-yellow-200";
   return "bg-red-100 text-red-900 border-red-200";
 }
-
 function commissionLabel(pct: number) {
   if (pct >= 130) return { icon: "🚀", label: "Megameta" };
   if (pct >= 120) return { icon: "⭐", label: "Supermeta" };
@@ -52,36 +38,13 @@ export default function GerentePage() {
 
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [achieved, setAchieved] = useState<Record<string, number>>({});
-
-  const [sellerDays, setSellerDays] = useState<
-    {
-      seller_id: string;
-      name: string;
-      folgas: number;
-      faltas: number;
-      trabalhados: number;
-    }[]
-  >([]);
-
   const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
+  const [sellerTargets, setSellerTargets] = useState<any[]>([]);
+  const [sellerDays, setSellerDays] = useState<any[]>([]);
 
-  const [sellerTargets, setSellerTargets] = useState<
-    {
-      seller_id: string;
-      name: string;
-      meta: number;
-      realizado: number;
-      pct: number;
-      commission: number;
-      commissionPct: number;
-      level: { icon: string; label: string };
-    }[]
-  >([]);
-
-  const mKey = monthKey(month);
   const diasMes = daysInMonth(month);
+  const mKey = monthKey(month);
 
-  // 🔒 Proteção
   useEffect(() => {
     (async () => {
       const { data: sess } = await supabase.auth.getSession();
@@ -101,32 +64,20 @@ export default function GerentePage() {
 
       setRoleOk(true);
 
-      const { data: st } = await supabase
-        .from("stores")
-        .select("id,name")
-        .order("id");
-
+      const { data: st } = await supabase.from("stores").select("id,name").order("id");
       setStores((st as Store[]) || []);
+
       setLoading(false);
     })();
   }, []);
 
-  // 📊 Carregar dados
   async function loadMonthData() {
     const start = mKey;
-    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1)
-      .toISOString()
-      .slice(0, 10);
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString().slice(0, 10);
 
-    // regras de comissão
-    const { data: cr } = await supabase
-      .from("commission_rules")
-      .select("*")
-      .order("min_pct");
-
+    const { data: cr } = await supabase.from("commission_rules").select("*").order("min_pct");
     setCommissionRules((cr as CommissionRule[]) || []);
 
-    // metas
     const { data: t } = await supabase
       .from("store_targets")
       .select("store_id,period,target_value")
@@ -138,7 +89,6 @@ export default function GerentePage() {
     });
     setTargets(tMap);
 
-    // vendas
     const { data: s } = await supabase
       .from("sales")
       .select("seller_id,store_id,period,amount")
@@ -152,17 +102,13 @@ export default function GerentePage() {
     });
     setAchieved(aMap);
 
-    // dias
     const { data: sd } = await supabase
       .from("seller_days")
       .select("seller_id,status,profiles(name)")
       .gte("day", start)
       .lt("day", end);
 
-    const dayMap: Record<
-      string,
-      { name: string; folgas: number; faltas: number }
-    > = {};
+    const dayMap: Record<string, { name: string; folgas: number; faltas: number }> = {};
 
     (sd as any[] | null)?.forEach((r) => {
       const id = r.seller_id;
@@ -187,11 +133,7 @@ export default function GerentePage() {
 
     setSellerDays(sellersArr);
 
-    // 🎯 comissão
-    const sellerCalc: Record<
-      string,
-      { name: string; dias: number; meta: number; realizado: number }
-    > = {};
+    const sellerCalc: Record<string, { name: string; dias: number; meta: number; realizado: number }> = {};
 
     sellersArr.forEach((s) => {
       sellerCalc[s.seller_id] = {
@@ -212,8 +154,7 @@ export default function GerentePage() {
       let meta = 0;
       for (const st of stores) {
         for (const period of ["manha", "noite"] as const) {
-          const metaMensal =
-            tMap[`${st.id}_${period}`] || 0;
+          const metaMensal = tMap[`${st.id}_${period}`] || 0;
           meta += (metaMensal / diasMes) * sellerCalc[sellerId].dias;
         }
       }
@@ -251,15 +192,8 @@ export default function GerentePage() {
     if (roleOk) loadMonthData();
   }, [roleOk, mKey]);
 
-  async function saveCommissionRule(
-    level: string,
-    percent: number
-  ) {
-    await supabase
-      .from("commission_rules")
-      .update({ percent })
-      .eq("level", level);
-
+  async function saveCommissionRule(level: string, percent: number) {
+    await supabase.from("commission_rules").update({ percent }).eq("level", level);
     await loadMonthData();
   }
 
@@ -273,55 +207,38 @@ export default function GerentePage() {
       {/* 🔧 REGRAS DE COMISSÃO */}
       <section className="border rounded-2xl p-4">
         <div className="font-semibold mb-2">Regras de comissão (%)</div>
-
         <div className="grid gap-2 text-sm">
           {commissionRules.map((r) => (
-            <div
-              key={r.level}
-              className="flex items-center justify-between border rounded-lg p-2"
-            >
+            <div key={r.level} className="flex items-center justify-between border rounded-lg p-2">
               <span>
                 {r.level === "meta" && "✅ Meta"}
                 {r.level === "supermeta" && "⭐ Supermeta"}
                 {r.level === "megameta" && "🚀 Megameta"}
               </span>
-
               <input
                 type="number"
                 step="0.1"
                 className="w-20 border rounded p-1 text-right"
                 value={r.percent}
-                onChange={(e) =>
-                  saveCommissionRule(r.level, Number(e.target.value))
-                }
+                onChange={(e) => saveCommissionRule(r.level, Number(e.target.value))}
               />
             </div>
           ))}
         </div>
       </section>
 
-      {/* 💰 COMISSÃO */}
+      {/* 💰 COMISSÕES */}
       <section className="border rounded-2xl p-4">
         <div className="font-semibold mb-2">Comissão por vendedora</div>
-
         <div className="grid gap-2 text-sm">
           {sellerTargets.map((s) => (
-            <div
-              key={s.seller_id}
-              className={`border rounded-lg p-2 ${statusColor(
-                s.pct
-              )}`}
-            >
+            <div key={s.seller_id} className={`border rounded-lg p-2 ${statusColor(s.pct)}`}>
               <div className="font-medium">{s.name}</div>
               <div className="mt-1">
                 <div><b>Meta:</b> {formatBRL(s.meta)}</div>
                 <div><b>Realizado:</b> {formatBRL(s.realizado)}</div>
                 <div><b>Atingimento:</b> {s.pct.toFixed(1)}%</div>
-                <div>
-                  <b>Comissão:</b>{" "}
-                  {s.level.icon} {s.level.label} —{" "}
-                  {s.commissionPct}% → {formatBRL(s.commission)}
-                </div>
+                <div><b>Comissão:</b> {s.level.icon} {s.level.label} — {s.commissionPct}% → {formatBRL(s.commission)}</div>
               </div>
             </div>
           ))}
