@@ -13,20 +13,40 @@ export default function Home() {
     setLoading(true);
     setMsg(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setLoading(false);
-
-    if (error) {
-      setMsg(error.message);
+     console.log("SESSION:", data.session); 
+     
+    if (error || !data.session) {
+      setLoading(false);
+      setMsg(error?.message || "Erro ao logar");
       return;
     }
 
-    // 🔑 SEMPRE redireciona após login
-    window.location.replace("/redirect");
+    // 🔑 BUSCA O PROFILE IMEDIATAMENTE
+    const { data: prof, error: profError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.session.user.id)
+      .single();
+
+    setLoading(false);
+
+    if (profError || !prof) {
+      setMsg("Perfil não encontrado.");
+      await supabase.auth.signOut();
+      return;
+    }
+
+    // 🚀 REDIRECIONA DIRETO
+    if (prof.role === "gerente") {
+      window.location.href = "/gerente";
+    } else {
+      window.location.href = "/vendedora";
+    }
   }
 
   async function signUp() {
@@ -39,7 +59,7 @@ export default function Home() {
     });
 
     setLoading(false);
-    setMsg(error ? error.message : "Conta criada! Agora faça login.");
+    setMsg(error ? error.message : "Conta criada! Faça login.");
   }
 
   return (
@@ -53,7 +73,6 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="email@exemplo.com"
           />
         </div>
 
@@ -64,13 +83,12 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="********"
           />
         </div>
 
         <div className="flex gap-2">
           <button
-            type="button"            // 👈 ESSENCIAL
+            type="button"
             onClick={signIn}
             disabled={loading}
             className="flex-1 bg-black text-white rounded-lg p-2"
