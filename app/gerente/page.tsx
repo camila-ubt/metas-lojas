@@ -231,80 +231,93 @@ export default function GerentePage() {
         </div>
       </section>
 
-      {/* Regras de comissão no final */}
-      <section className="border p-4 rounded-xl space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="font-semibold">Regras de Comissão (%)</h2>
-          <button
-            className="bg-black text-white px-3 py-1 rounded"
-            onClick={saveRules}
-          >
-            Salvar
-          </button>
-        </div>
-        <div className="grid gap-3">
-          {rules.map((r, i) => (
-            <div key={i} className="grid md:grid-cols-4 gap-3 text-sm items-center">
-              <input
-                className="border p-2 rounded"
-                placeholder="Emoji"
-                value={r.emoji || ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].emoji = val;
-                    return copy;
-                  });
-                }}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="Label"
-                value={r.label || ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].label = val;
-                    return copy;
-                  });
-                }}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="Mínimo %"
-                inputMode="decimal"
-                step="any"
-                value={r.min_pct?.toString().replace(".", ",") || ""}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value.replace(",", "."));
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].min_pct = isNaN(val) ? 0 : val;
-                    return copy;
-                  });
-                }}
-              />
-              <input
-                className="border p-2 rounded"
-                placeholder="% Comissão"
-                inputMode="decimal"
-                step="any"
-                value={r.percent?.toString().replace(".", ",") || ""}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value.replace(",", "."));
-                  setRules((prev) => {
-                    const copy = [...prev];
-                    copy[i].percent = isNaN(val) ? 0 : val;
-                    return copy;
-                  });
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
+{/* Detalhes por vendedora */}
+<section className="border rounded-2xl p-4">
+<h2 className="text-lg font-semibold mb-2">Detalhes por Vendedora</h2>
+<p className="text-sm opacity-70 mb-4">Essa seção irá mostrar: dias trabalhados, folgas, faltas, total vendido, porcentagem da meta e comissão estimada para cada vendedora.</p>
+
+
+{/* Placeholder visual temporário */}
+<div className="p-4 border rounded-xl text-sm text-gray-500">
+⚠️ Essa seção está aguardando dados das tabelas <code>seller_days</code>, <code>profiles</code> e <code>sales</code> para exibir os detalhes de cada vendedora.
+</div>
+</section>
+
+
+{/* Regras de comissão no final */}
+<section className="border p-4 rounded-xl space-y-3">
+<div className="flex justify-between items-center">
+<h2 className="font-semibold">Regras de Comissão (%)</h2>
+<button
+className="bg-black text-white px-3 py-1 rounded"
+onClick={saveRules}
+>
+Salvar
+</button>
+</div>
+<div className="grid gap-3">
+{rules.map((r, i) => (
+<div key={i} className="grid md:grid-cols-4 gap-3 text-sm items-center">
+<input
+className="border p-2 rounded"
+placeholder="Emoji"
+value={r.emoji || ""}
+onChange={(e) => {
+const val = e.target.value;
+setRules((prev) => {
+const copy = [...prev];
+copy[i].emoji = val;
+return copy;
+});
+}}
+/>
+<input
+className="border p-2 rounded"
+placeholder="Label"
+value={r.label || ""}
+onChange={(e) => {
+const val = e.target.value;
+setRules((prev) => {
+const copy = [...prev];
+copy[i].label = val;
+return copy;
+});
+}}
+/>
+<input
+className="border p-2 rounded"
+placeholder="Mínimo %"
+inputMode="decimal"
+step="any"
+value={r.min_pct?.toString().replace(".", ",") || ""}
+onChange={(e) => {
+const val = parseFloat(e.target.value.replace(",", "."));
+setRules((prev) => {
+const copy = [...prev];
+copy[i].min_pct = isNaN(val) ? 0 : val;
+return copy;
+});
+}}
+/>
+<input
+className="border p-2 rounded"
+placeholder="% Comissão"
+inputMode="decimal"
+step="any"
+value={r.percent?.toString().replace(".", ",") || ""}
+onChange={(e) => {
+const val = parseFloat(e.target.value.replace(",", "."));
+setRules((prev) => {
+const copy = [...prev];
+copy[i].percent = isNaN(val) ? 0 : val;
+return copy;
+});
+}}
+/>
+</div>
+))}
+</div>
+</section>
+</main>
+);
+} // fim do componente
