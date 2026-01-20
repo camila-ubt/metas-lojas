@@ -8,9 +8,14 @@ export default function VendedoraPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [name, setName] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
-  const [month, setMonth] = useState(new Date());
-  const [sales, setSales] = useState<Record<string, string>>(/** key = YYYY-MM-DD_period */ {});
-  const [presencas, setPresencas] = useState<Record<string, string>>(/** key = YYYY-MM-DD */ {});
+  const [data, setData] = useState({
+    dia: new Date().toISOString().slice(0, 10),
+    loja: "",
+    periodo: "manha",
+    valor: "",
+    tipoDia: "trabalhado",
+    horaPersonalizada: ""
+  });
 
   useEffect(() => {
     (async () => {
@@ -29,135 +34,114 @@ export default function VendedoraPage() {
 
       const { data: st } = await supabase.from("stores").select("id, name").order("id");
       setStores(st || []);
+      setData((prev) => ({ ...prev, loja: st?.[0]?.id || "" }));
 
       setLoading(false);
     })();
   }, []);
 
-  const diasDoMes = Array.from({ length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() }, (_, i) => {
-    const d = new Date(month.getFullYear(), month.getMonth(), i + 1);
-    return d.toISOString().slice(0, 10);
-  });
+  async function salvar() {
+    if (!userId || !data.loja || !data.dia) return;
 
-  function setVenda(dia: string, period: string, valor: string) {
-    setSales((prev) => ({ ...prev, [`${dia}_${period}`]: valor }));
-  }
+    const inserts: any[] = [];
 
-  function setTipoDia(dia: string, tipo: string) {
-    setPresencas((prev) => ({ ...prev, [dia]: tipo }));
-  }
-
-  async function salvarTudo() {
-    if (!userId) return;
-    const vendas: any[] = [];
-    const presencasData: any[] = [];
-
-    for (const [chave, valor] of Object.entries(sales)) {
-      const [dia, period] = chave.split("_");
-      const num = parseFloat(valor.replace(",", "."));
-      if (!isNaN(num) && num > 0) {
-        for (const loja of stores) {
-          vendas.push({
-            seller_id: userId,
-            store_id: loja.id,
-            period,
-            sale_date: dia,
-            amount: num,
-          });
-        }
-      }
-    }
-
-    for (const [dia, tipo] of Object.entries(presencas)) {
-      if (tipo) {
-        presencasData.push({ seller_id: userId, day: dia, type: tipo });
-      }
-    }
-
-    if (vendas.length > 0) {
-      await supabase.from("sales").upsert(vendas, {
-        onConflict: "seller_id,sale_date,store_id,period",
+    if (data.tipoDia !== "trabalhado") {
+      inserts.push({
+        seller_id: userId,
+        day: data.dia,
+        type: data.tipoDia,
       });
+      await supabase.from("seller_days").upsert(inserts, { onConflict: "seller_id,day" });
+    } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
+      const sale = {
+        seller_id: userId,
+        store_id: data.loja,
+        sale_date: data.dia,
+        period: data.periodo,
+        amount: parseFloat(data.valor.replace(",", "."))
+      };
+      await supabase.from("sales").upsert([sale], { onConflict: "seller_id,sale_date,store_id,period" });
     }
 
-    if (presencasData.length > 0) {
-      await supabase.from("seller_days").upsert(presencasData, {
-        onConflict: "seller_id,day",
-      });
-    }
-
-    alert("Lançamentos salvos!");
+    alert("Lançamento salvo!");
+    setData((prev) => ({ ...prev, valor: "", horaPersonalizada: "" }));
   }
 
   if (loading) return <div className="p-6">Carregando…</div>;
 
   return (
-    <main className="p-4 space-y-6">
+    <main className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Olá, {name}</h1>
 
-      <div className="flex items-center gap-2">
-        <label>Mês:</label>
+      <div className="grid gap-3 max-w-md">
+        <label className="text-sm font-medium">Dia</label>
         <input
-          type="month"
-          value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
-          onChange={(e) => {
-            const [y, m] = e.target.value.split("-").map(Number);
-            setMonth(new Date(y, m - 1, 1));
-          }}
+          type="date"
           className="border rounded p-2"
+          value={data.dia}
+          onChange={(e) => setData((prev) => ({ ...prev, dia: e.target.value }))}
         />
-      </div>
 
-      <table className="w-full border text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-1">Dia</th>
-            <th className="border p-1">Período</th>
-            <th className="border p-1">Valor Vendido</th>
-            <th className="border p-1">Tipo de Dia</th>
-          </tr>
-        </thead>
-        <tbody>
-          {diasDoMes.map((dia) => (
-            ["manha", "noite"].map((period, idx) => (
-              <tr key={`${dia}_${period}`} className={idx % 2 ? "bg-gray-50" : ""}>
-                <td className="border px-2 py-1">{idx === 0 ? dia : ""}</td>
-                <td className="border px-2 py-1">{period}</td>
-                <td className="border px-2 py-1">
-                  <input
-                    type="number"
-                    className="w-full border rounded p-1"
-                    step="0.01"
-                    value={sales[`${dia}_${period}`] || ""}
-                    onChange={(e) => setVenda(dia, period, e.target.value)}
-                  />
-                </td>
-                <td className="border px-2 py-1">
-                  {period === "manha" && (
-                    <select
-                      value={presencas[dia] || ""}
-                      onChange={(e) => setTipoDia(dia, e.target.value)}
-                      className="w-full border rounded p-1"
-                    >
-                      <option value="">--</option>
-                      <option value="trabalhado">Trabalhado</option>
-                      <option value="folga">Folga</option>
-                      <option value="falta">Falta</option>
-                    </select>
-                  )}
-                </td>
-              </tr>
-            ))
+        <label className="text-sm font-medium">Loja</label>
+        <select
+          className="border rounded p-2"
+          value={data.loja}
+          onChange={(e) => setData((prev) => ({ ...prev, loja: e.target.value }))}
+        >
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
           ))}
-        </tbody>
-      </table>
+        </select>
 
-      <button
-        className="bg-black text-white px-4 py-2 rounded"
-        onClick={salvarTudo}
-      >
-        Salvar Lançamentos
-      </button>
+        <label className="text-sm font-medium">Período</label>
+        <select
+          className="border rounded p-2"
+          value={data.periodo}
+          onChange={(e) => setData((prev) => ({ ...prev, periodo: e.target.value }))}
+        >
+          <option value="manha">Manhã</option>
+          <option value="noite">Noite</option>
+          <option value="dobrado">Dobrado</option>
+          <option value="personalizado">Personalizado</option>
+        </select>
+
+        {data.periodo === "personalizado" && (
+          <input
+            type="text"
+            placeholder="Ex: 11h às 17h"
+            className="border rounded p-2"
+            value={data.horaPersonalizada}
+            onChange={(e) => setData((prev) => ({ ...prev, horaPersonalizada: e.target.value }))}
+          />
+        )}
+
+        <label className="text-sm font-medium">Valor vendido (R$)</label>
+        <input
+          type="number"
+          step="0.01"
+          className="border rounded p-2"
+          value={data.valor}
+          onChange={(e) => setData((prev) => ({ ...prev, valor: e.target.value }))}
+        />
+
+        <label className="text-sm font-medium">Tipo de dia</label>
+        <select
+          className="border rounded p-2"
+          value={data.tipoDia}
+          onChange={(e) => setData((prev) => ({ ...prev, tipoDia: e.target.value }))}
+        >
+          <option value="trabalhado">Trabalhado</option>
+          <option value="folga">Folga</option>
+          <option value="falta">Falta</option>
+        </select>
+
+        <button
+          className="bg-black text-white rounded p-2 mt-2"
+          onClick={salvar}
+        >
+          Salvar Lançamento
+        </button>
+      </div>
     </main>
   );
 }
