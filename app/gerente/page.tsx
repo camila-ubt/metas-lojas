@@ -155,13 +155,6 @@ export default function GerentePage() {
         </div>
       </header>
 
-      {/* Regras de meta no topo */}
-      <section className="border rounded-2xl p-4">
-        <h2 className="text-lg font-semibold mb-2">Regras de Meta</h2>
-        <p className="text-sm opacity-70">
-          A meta mensal de cada loja e período é definida manualmente. A meta diária é calculada dividindo o valor da meta pelo número de dias do mês.
-        </p>
-      </section>
 
       {/* Metas das vendedoras por loja */}
       <section className={`border rounded-2xl p-4 ${statusColor(totalPct)}`}>
