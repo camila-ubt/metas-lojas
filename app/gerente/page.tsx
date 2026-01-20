@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Store = { id: number; name: string };
-type CommissionRule = { level: string; min_pct: number; percent: number };
 
 function monthKey(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
@@ -22,12 +21,6 @@ function statusColor(pct: number) {
   if (pct >= 80) return "bg-yellow-100 text-yellow-900 border-yellow-200";
   return "bg-red-100 text-red-900 border-red-200";
 }
-function commissionLabel(pct: number) {
-  if (pct >= 130) return { icon: "🚀", label: "Megameta" };
-  if (pct >= 120) return { icon: "⭐", label: "Supermeta" };
-  if (pct >= 100) return { icon: "✅", label: "Meta" };
-  return { icon: "❌", label: "Sem meta" };
-}
 
 export default function GerentePage() {
   const [loading, setLoading] = useState(true);
@@ -38,17 +31,24 @@ export default function GerentePage() {
 
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [achieved, setAchieved] = useState<Record<string, number>>({});
-  const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
-  const [sellerTargets, setSellerTargets] = useState<any[]>([]);
-  const [sellerDays, setSellerDays] = useState<any[]>([]);
+
+  const mKey = monthKey(month);
 
   const diasMes = daysInMonth(month);
-  const mKey = monthKey(month);
+
+  const totalTarget = Object.values(targets).reduce((a, b) => a + (b || 0), 0);
+  const totalAchieved = Object.values(achieved).reduce((a, b) => a + (b || 0), 0);
+  const totalPct = totalTarget > 0 ? (totalAchieved / totalTarget) * 100 : 0;
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
+
       const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) return (window.location.href = "/");
+      if (!sess.session) {
+        window.location.href = "/";
+        return;
+      }
 
       const { data: prof } = await supabase
         .from("profiles")
@@ -72,12 +72,6 @@ export default function GerentePage() {
   }, []);
 
   async function loadMonthData() {
-    const start = mKey;
-    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString().slice(0, 10);
-
-    const { data: cr } = await supabase.from("commission_rules").select("*").order("min_pct");
-    setCommissionRules((cr as CommissionRule[]) || []);
-
     const { data: t } = await supabase
       .from("store_targets")
       .select("store_id,period,target_value")
@@ -89,10 +83,14 @@ export default function GerentePage() {
     });
     setTargets(tMap);
 
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1)
+      .toISOString()
+      .slice(0, 10);
+
     const { data: s } = await supabase
       .from("sales")
-      .select("seller_id,store_id,period,amount")
-      .gte("sale_date", start)
+      .select("store_id,period,amount,sale_date")
+      .gte("sale_date", mKey)
       .lt("sale_date", end);
 
     const aMap: Record<string, number> = {};
@@ -101,99 +99,41 @@ export default function GerentePage() {
       aMap[k] = (aMap[k] || 0) + Number(r.amount || 0);
     });
     setAchieved(aMap);
-
-    const { data: sd } = await supabase
-      .from("seller_days")
-      .select("seller_id,status,profiles(name)")
-      .gte("day", start)
-      .lt("day", end);
-
-    const dayMap: Record<string, { name: string; folgas: number; faltas: number }> = {};
-
-    (sd as any[] | null)?.forEach((r) => {
-      const id = r.seller_id;
-      if (!dayMap[id]) {
-        dayMap[id] = {
-          name: r.profiles?.name || "Vendedora",
-          folgas: 0,
-          faltas: 0,
-        };
-      }
-      if (r.status === "folga") dayMap[id].folgas++;
-      if (r.status === "falta") dayMap[id].faltas++;
-    });
-
-    const sellersArr = Object.entries(dayMap).map(([seller_id, v]) => ({
-      seller_id,
-      name: v.name,
-      folgas: v.folgas,
-      faltas: v.faltas,
-      trabalhados: Math.max(diasMes - v.folgas - v.faltas, 0),
-    }));
-
-    setSellerDays(sellersArr);
-
-    const sellerCalc: Record<string, { name: string; dias: number; meta: number; realizado: number }> = {};
-
-    sellersArr.forEach((s) => {
-      sellerCalc[s.seller_id] = {
-        name: s.name,
-        dias: s.trabalhados,
-        meta: 0,
-        realizado: 0,
-      };
-    });
-
-    (s as any[] | null)?.forEach((sale) => {
-      if (sellerCalc[sale.seller_id]) {
-        sellerCalc[sale.seller_id].realizado += Number(sale.amount || 0);
-      }
-    });
-
-    for (const sellerId in sellerCalc) {
-      let meta = 0;
-      for (const st of stores) {
-        for (const period of ["manha", "noite"] as const) {
-          const metaMensal = tMap[`${st.id}_${period}`] || 0;
-          meta += (metaMensal / diasMes) * sellerCalc[sellerId].dias;
-        }
-      }
-      sellerCalc[sellerId].meta = meta;
-    }
-
-    setSellerTargets(
-      Object.entries(sellerCalc).map(([id, v]) => {
-        const pct = v.meta > 0 ? (v.realizado / v.meta) * 100 : 0;
-
-        const rule =
-          commissionRules
-            .slice()
-            .reverse()
-            .find((r) => pct >= r.min_pct) || null;
-
-        const percent = rule ? rule.percent : 0;
-        const commission = v.realizado * (percent / 100);
-
-        return {
-          seller_id: id,
-          name: v.name,
-          meta: v.meta,
-          realizado: v.realizado,
-          pct,
-          commission,
-          commissionPct: percent,
-          level: commissionLabel(pct),
-        };
-      })
-    );
   }
 
   useEffect(() => {
     if (roleOk) loadMonthData();
   }, [roleOk, mKey]);
 
-  async function saveCommissionRule(level: string, percent: number) {
-    await supabase.from("commission_rules").update({ percent }).eq("level", level);
+  function setTarget(storeId: number, period: "manha" | "noite", value: number) {
+    setTargets((prev) => ({ ...prev, [`${storeId}_${period}`]: value }));
+  }
+
+  async function saveTargets() {
+    const rows: any[] = [];
+
+    for (const st of stores) {
+      for (const period of ["manha", "noite"] as const) {
+        const v = Number(targets[`${st.id}_${period}`] || 0);
+        rows.push({
+          month: mKey,
+          store_id: st.id,
+          period,
+          target_value: v,
+        });
+      }
+    }
+
+    const { error } = await supabase
+      .from("store_targets")
+      .upsert(rows, { onConflict: "month,store_id,period" });
+
+    if (error) {
+      alert("Erro ao salvar metas: " + error.message);
+    } else {
+      alert("Metas salvas com sucesso!");
+    }
+
     await loadMonthData();
   }
 
@@ -204,44 +144,99 @@ export default function GerentePage() {
     <main className="min-h-screen p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Dashboard da Gerente</h1>
 
-      {/* 🔧 REGRAS DE COMISSÃO */}
-      <section className="border rounded-2xl p-4">
-        <div className="font-semibold mb-2">Regras de comissão (%)</div>
-        <div className="grid gap-2 text-sm">
-          {commissionRules.map((r) => (
-            <div key={r.level} className="flex items-center justify-between border rounded-lg p-2">
-              <span>
-                {r.level === "meta" && "✅ Meta"}
-                {r.level === "supermeta" && "⭐ Supermeta"}
-                {r.level === "megameta" && "🚀 Megameta"}
-              </span>
-              <input
-                type="number"
-                step="0.1"
-                className="w-20 border rounded p-1 text-right"
-                value={r.percent}
-                onChange={(e) => saveCommissionRule(r.level, Number(e.target.value))}
-              />
+      {/* Totais do mês */}
+      <section className={`border rounded-2xl p-4 ${statusColor(totalPct)}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm opacity-80">Total do mês (3 lojas)</div>
+            <div className="text-xl font-semibold">
+              {formatBRL(totalAchieved)} / {formatBRL(totalTarget)}
             </div>
-          ))}
+          </div>
+          <div className="text-sm">
+            <span className="font-semibold">{totalPct.toFixed(1)}%</span> do alvo
+          </div>
         </div>
       </section>
 
-      {/* 💰 COMISSÕES */}
+      {/* Legenda de cores */}
       <section className="border rounded-2xl p-4">
-        <div className="font-semibold mb-2">Comissão por vendedora</div>
-        <div className="grid gap-2 text-sm">
-          {sellerTargets.map((s) => (
-            <div key={s.seller_id} className={`border rounded-lg p-2 ${statusColor(s.pct)}`}>
-              <div className="font-medium">{s.name}</div>
-              <div className="mt-1">
-                <div><b>Meta:</b> {formatBRL(s.meta)}</div>
-                <div><b>Realizado:</b> {formatBRL(s.realizado)}</div>
-                <div><b>Atingimento:</b> {s.pct.toFixed(1)}%</div>
-                <div><b>Comissão:</b> {s.level.icon} {s.level.label} — {s.commissionPct}% → {formatBRL(s.commission)}</div>
+        <div className="font-semibold mb-2">Legenda</div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+          <div className="border rounded-lg p-2 bg-red-100">Risco (&lt;80%)</div>
+          <div className="border rounded-lg p-2 bg-yellow-100">Atenção (80–99%)</div>
+          <div className="border rounded-lg p-2 bg-green-100">Meta (100–119%)</div>
+          <div className="border rounded-lg p-2 bg-purple-100">Supermeta (120–129%)</div>
+          <div className="border rounded-lg p-2 bg-blue-100">Megameta (130%+)</div>
+        </div>
+      </section>
+
+      {/* Metas por loja e período */}
+      <section className="border rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="font-semibold">Metas por loja e período</div>
+          <button className="bg-black text-white rounded-lg px-3 py-2" onClick={saveTargets}>
+            Salvar metas
+          </button>
+        </div>
+
+        <div className="text-sm opacity-70">
+          Meta diária = <b>meta mensal ÷ {diasMes} dias</b>
+        </div>
+
+        <div className="grid gap-3">
+          {stores.map((st) => {
+            return (
+              <div key={st.id} className="border rounded-2xl p-4">
+                <div className="text-lg font-semibold mb-3">{st.name}</div>
+
+                <div className="grid md:grid-cols-2 gap-3">
+                  {(["manha", "noite"] as const).map((period) => {
+                    const key = `${st.id}_${period}`;
+                    const t = Number(targets[key] || 0);
+                    const a = Number(achieved[key] || 0);
+                    const pct = t > 0 ? (a / t) * 100 : 0;
+                    const daily = t / diasMes;
+
+                    return (
+                      <div
+                        key={key}
+                        className={`border rounded-2xl p-4 ${statusColor(pct)}`}
+                      >
+                        <div className="flex justify-between font-semibold">
+                          <div>{period === "manha" ? "Manhã" : "Noite"}</div>
+                          <div className="text-sm">{pct.toFixed(1)}%</div>
+                        </div>
+
+                        <div className="mt-2 text-sm">
+                          <div>
+                            <b>Realizado:</b> {formatBRL(a)}
+                          </div>
+                          <div>
+                            <b>Meta:</b> {formatBRL(t)}{" "}
+                            <span className="opacity-70">(≈ {formatBRL(daily)}/dia)</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <label className="text-sm block mb-1">Editar meta mensal</label>
+                          <input
+                            className="w-full border rounded-lg p-2"
+                            type="number"
+                            step="0.01"
+                            value={Number.isFinite(t) ? t : 0}
+                            onChange={(e) =>
+                              setTarget(st.id, period, Number(e.target.value || 0))
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </main>
