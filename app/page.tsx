@@ -25,8 +25,8 @@ export default function Home() {
       return;
     }
 
-    // 🔑 SEMPRE redireciona
-    window.location.href = "/redirect";
+    // 🔑 SEMPRE redireciona após login
+    window.location.replace("/redirect");
   }
 
   async function signUp() {
@@ -39,7 +39,7 @@ export default function Home() {
     });
 
     setLoading(false);
-    setMsg(error ? error.message : "Conta criada! Faça login.");
+    setMsg(error ? error.message : "Conta criada! Agora faça login.");
   }
 
   return (
@@ -53,6 +53,7 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            placeholder="email@exemplo.com"
           />
         </div>
 
@@ -63,12 +64,13 @@ export default function Home() {
             className="w-full border rounded-lg p-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            placeholder="********"
           />
         </div>
 
         <div className="flex gap-2">
           <button
-            type="button"
+            type="button"            // 👈 ESSENCIAL
             onClick={signIn}
             disabled={loading}
             className="flex-1 bg-black text-white rounded-lg p-2"
@@ -77,6 +79,7 @@ export default function Home() {
           </button>
 
           <button
+            type="button"
             onClick={signUp}
             disabled={loading}
             className="flex-1 border rounded-lg p-2"
