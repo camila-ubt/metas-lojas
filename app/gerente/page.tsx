@@ -1,205 +1,303 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-
-function formatBRL(v: number) {
-  return v.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
-function statusColor(pct: number) {
-  if (pct >= 130) return "bg-blue-100 text-blue-900 border-blue-200";
-  if (pct >= 120) return "bg-purple-100 text-purple-900 border-purple-200";
-  if (pct >= 100) return "bg-green-100 text-green-900 border-green-200";
-  if (pct >= 80) return "bg-yellow-100 text-yellow-900 border-yellow-200";
-  return "bg-red-100 text-red-900 border-red-200";
-}
 
 export default function GerentePage() {
   const [loading, setLoading] = useState(true);
-  const [roleOk, setRoleOk] = useState(false);
-  const [month, setMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  });
-
-  const [stores, setStores] = useState<any[]>([]);
+  const [roleOk, setRoleOk] = useState<boolean | null>(null);
+  const [stores, setStores] = useState<{ id: number; name: string }[]>([]);
+  const [month, setMonth] = useState(new Date());
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [achieved, setAchieved] = useState<Record<string, number>>({});
-  const [commissionRules, setCommissionRules] = useState<any[]>([]);
-  const [percentInput, setPercentInput] = useState<Record<string, string>>({});
-  const [commissions, setCommissions] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
+
+  const mKey = new Date(month.getFullYear(), month.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+
+  const totalTarget = useMemo(
+    () => Object.values(targets).reduce((a, b) => a + (b || 0), 0),
+    [targets]
+  );
+  const totalAchieved = useMemo(
+    () => Object.values(achieved).reduce((a, b) => a + (b || 0), 0),
+    [achieved]
+  );
+  const totalPct = totalTarget > 0 ? (totalAchieved / totalTarget) * 100 : 0;
+
+  function statusColor(pct: number) {
+    if (pct >= 130) return "bg-blue-100 text-blue-900 border-blue-200";
+    if (pct >= 120) return "bg-purple-100 text-purple-900 border-purple-200";
+    if (pct >= 100) return "bg-green-100 text-green-900 border-green-200";
+    if (pct >= 80) return "bg-yellow-100 text-yellow-900 border-yellow-200";
+    return "bg-red-100 text-red-900 border-red-200";
+  }
 
   useEffect(() => {
     (async () => {
-      const { data: session } = await supabase.auth.getSession();
-      const id = session.session?.user.id;
-      if (!id) return;
+      setLoading(true);
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) {
+        window.location.href = "/";
+        return;
+      }
 
       const { data: prof } = await supabase
         .from("profiles")
         .select("role")
-        .eq("id", id)
+        .eq("id", sess.session.user.id)
         .single();
 
-      if (prof?.role !== "gerente") return;
+      if (!prof || prof.role !== "gerente") {
+        setRoleOk(false);
+        setLoading(false);
+        return;
+      }
 
       setRoleOk(true);
-
-      const { data: st } = await supabase.from("stores").select("*").order("id");
+      const { data: st } = await supabase.from("stores").select("id, name").order("id");
       setStores(st || []);
-
-      const { data: rules } = await supabase
-        .from("commission_rules")
-        .select("*")
-        .order("min_pct");
-
-      setCommissionRules(rules || []);
-      const map: Record<string, string> = {};
-      rules?.forEach((r) => {
-        map[r.level] = String(r.percent);
-      });
-      setPercentInput(map);
+      const { data: r } = await supabase.from("commission_rules").select("*").order("min_pct");
+      setRules(r || []);
+      setLoading(false);
     })();
   }, []);
 
-  useEffect(() => {
-    if (!roleOk) return;
-    loadData();
-  }, [roleOk, month]);
-
-  async function loadData() {
-    const m = new Date(month + "-01");
-    const next = new Date(m.getFullYear(), m.getMonth() + 1, 1).toISOString();
-    const start = m.toISOString();
-
-    const { data: metas } = await supabase
+  async function loadMonthData() {
+    const { data: t } = await supabase
       .from("store_targets")
-      .select("*")
-      .eq("month", start);
+      .select("store_id,period,target_value")
+      .eq("month", mKey);
 
     const tMap: Record<string, number> = {};
-    metas?.forEach((t) => {
-      tMap[`${t.store_id}_${t.period}`] = Number(t.target_value);
+    (t || []).forEach((r) => {
+      tMap[`${r.store_id}_${r.period}`] = Number(r.target_value || 0);
     });
     setTargets(tMap);
 
-    const { data: vendas } = await supabase
+    const start = mKey;
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1)
+      .toISOString()
+      .slice(0, 10);
+
+    const { data: s } = await supabase
       .from("sales")
-      .select("store_id, period, amount, seller_id, profiles(name)")
+      .select("store_id,period,amount")
       .gte("sale_date", start)
-      .lt("sale_date", next);
+      .lt("sale_date", end);
 
     const aMap: Record<string, number> = {};
-    vendas?.forEach((v) => {
-      const k = `${v.store_id}_${v.period}`;
-      aMap[k] = (aMap[k] || 0) + Number(v.amount);
+    (s || []).forEach((r) => {
+      const k = `${r.store_id}_${r.period}`;
+      aMap[k] = (aMap[k] || 0) + Number(r.amount || 0);
     });
     setAchieved(aMap);
-
-    const vendedores: Record<string, any> = {};
-    vendas?.forEach((v) => {
-      if (!vendedores[v.seller_id]) {
-        vendedores[v.seller_id] = {
-          nome: v.profiles?.[0]?.name || "",
-          total: 0,
-        };
-      }
-      vendedores[v.seller_id].total += Number(v.amount);
-    });
-
-    const totalMetaMensal = Object.values(tMap).reduce((a, b) => a + b, 0);
-    const porVendedora = totalMetaMensal / Object.keys(vendedores).length;
-
-    const lista = Object.entries(vendedores).map(([id, obj]) => {
-      const pct = porVendedora > 0 ? (obj.total / porVendedora) * 100 : 0;
-      const regra = [...commissionRules].reverse().find((r) => pct >= r.min_pct);
-      const comissao = regra ? obj.total * (regra.percent / 100) : 0;
-      return {
-        id,
-        nome: obj.nome,
-        vendido: obj.total,
-        meta: porVendedora,
-        pct,
-        regra,
-        comissao,
-      };
-    });
-
-    setCommissions(lista);
   }
 
-  async function updateRule(level: string) {
-    const value = percentInput[level]?.replace(",", ".") || "0";
-    const parsed = parseFloat(value);
-    if (!isNaN(parsed)) {
-      await supabase.from("commission_rules").update({ percent: parsed }).eq("level", level);
-      loadData();
-    }
+  useEffect(() => {
+    if (roleOk) loadMonthData();
+  }, [roleOk, mKey]);
+
+  function setTarget(storeId: number, period: "manha" | "noite", value: number) {
+    setTargets((prev) => ({ ...prev, [`${storeId}_${period}`]: value }));
   }
 
   async function saveTargets() {
-    const m = new Date(month + "-01").toISOString();
     const rows: any[] = [];
-
     for (const st of stores) {
       for (const period of ["manha", "noite"] as const) {
-        const value = targets[`${st.id}_${period}`] || 0;
-        rows.push({
-          month: m,
-          store_id: st.id,
-          period,
-          target_value: value,
-        });
+        const v = Number(targets[`${st.id}_${period}`] || 0);
+        rows.push({ month: mKey, store_id: st.id, period, target_value: v });
       }
     }
-
     const { error } = await supabase
       .from("store_targets")
       .upsert(rows, { onConflict: "month,store_id,period" });
 
     if (error) alert("Erro ao salvar metas: " + error.message);
     else alert("Metas salvas com sucesso!");
+    await loadMonthData();
   }
 
-  if (!roleOk) return <div className="p-6">Carregando…</div>;
+  async function saveRules() {
+    const { error } = await supabase.from("commission_rules").upsert(rules);
+    if (error) alert("Erro ao salvar regras: " + error.message);
+    else alert("Regras atualizadas!");
+  }
+
+  if (loading) return <div className="p-6">Carregando…</div>;
+  if (roleOk === false) return <div className="p-6">Acesso negado: apenas gerente.</div>;
 
   return (
-    <main className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <main className="min-h-screen p-6 space-y-6">
+      <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Dashboard da Gerente</h1>
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="border rounded px-2 py-1"
-        />
-      </div>
-
-      <section className="border rounded p-4">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold">Regras de Comissão (%)</h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
+            onChange={(e) => {
+              const [y, m] = e.target.value.split("-").map(Number);
+              setMonth(new Date(y, m - 1, 1));
+            }}
+            className="border rounded-lg p-2"
+          />
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/";
+            }}
+            className="border rounded-lg px-3 py-2"
+          >
+            Sair
+          </button>
         </div>
-        <div className="grid gap-2">
-          {commissionRules.map((r) => (
-            <div key={r.level} className="flex items-center justify-between">
-              <span>
-                {r.level === "meta" && "✅ Meta"}
-                {r.level === "supermeta" && "⭐ Supermeta"}
-                {r.level === "megameta" && "🚀 Megameta"}
-              </span>
+      </header>
+
+      <section className="border p-4 rounded-xl space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="font-semibold">Regras de Comissão (%)</h2>
+          <button
+            className="bg-black text-white px-3 py-1 rounded"
+            onClick={saveRules}
+          >
+            Salvar
+          </button>
+        </div>
+        <div className="grid gap-3">
+          {rules.map((r, i) => (
+            <div key={i} className="grid md:grid-cols-4 gap-3 text-sm items-center">
               <input
-                type="text"
-                inputMode="decimal"
-                className="w-24 border rounded px-2 py-1 text-right"
-                value={percentInput[r.level] || ""}
-                onChange={(e) =>
-                  setPercentInput((prev) => ({ ...prev, [r.level]: e.target.value }))
-                }
-                onBlur={() => updateRule(r.level)}
+                className="border p-2 rounded"
+                placeholder="Emoji"
+                value={r.emoji || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].emoji = val;
+                    return copy;
+                  });
+                }}
               />
+              <input
+                className="border p-2 rounded"
+                placeholder="Label"
+                value={r.label || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].label = val;
+                    return copy;
+                  });
+                }}
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="Mínimo %"
+                inputMode="decimal"
+                step="any"
+                value={r.min_pct?.toString().replace(".", ",") || ""}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value.replace(",", "."));
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].min_pct = isNaN(val) ? 0 : val;
+                    return copy;
+                  });
+                }}
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="% Comissão"
+                inputMode="decimal"
+                step="any"
+                value={r.percent?.toString().replace(".", ",") || ""}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value.replace(",", "."));
+                  setRules((prev) => {
+                    const copy = [...prev];
+                    copy[i].percent = isNaN(val) ? 0 : val;
+                    return copy;
+                  });
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={`border rounded-2xl p-4 ${statusColor(totalPct)}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm opacity-80">Total do mês</div>
+            <div className="text-xl font-semibold">
+              {totalAchieved.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })} / {totalTarget.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </div>
+          </div>
+          <div className="text-sm">
+            <span className="font-semibold">{totalPct.toFixed(1)}%</span> do alvo
+          </div>
+        </div>
+      </section>
+
+      <section className="border rounded-2xl p-4">
+        <div className="flex items-center justify-between">
+          <div className="font-semibold">Metas por loja</div>
+          <button className="bg-black text-white rounded-lg px-3 py-2" onClick={saveTargets}>
+            Salvar metas
+          </button>
+        </div>
+
+        <div className="grid gap-3 mt-4">
+          {stores.map((st) => (
+            <div key={st.id} className="border rounded-xl p-4">
+              <div className="text-lg font-semibold mb-2">{st.name}</div>
+              <div className="grid md:grid-cols-2 gap-4">
+                {["manha", "noite"].map((period) => {
+                  const key = `${st.id}_${period}`;
+                  const t = Number(targets[key] || 0);
+                  const a = Number(achieved[key] || 0);
+                  const pct = t > 0 ? (a / t) * 100 : 0;
+                  return (
+                    <div
+                      key={period}
+                      className={`border p-3 rounded-xl ${statusColor(pct)}`}
+                    >
+                      <div className="flex justify-between">
+                        <div className="font-semibold">{period === "manha" ? "Manhã" : "Noite"}</div>
+                        <div>{pct.toFixed(1)}%</div>
+                      </div>
+                      <div className="text-sm">
+                        <div>
+                          <b>Realizado:</b> R${" "}
+                          {a.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div>
+                          <b>Meta:</b> R${" "}
+                          <input
+                            className="border rounded p-1 w-24"
+                            type="number"
+                            step="0.01"
+                            value={t}
+                            onChange={(e) =>
+                              setTarget(st.id, period as "manha" | "noite", Number(e.target.value))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
