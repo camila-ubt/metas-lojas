@@ -8,13 +8,15 @@ export default function VendedoraPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [name, setName] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string>("");
   const [data, setData] = useState({
     dia: new Date().toISOString().slice(0, 10),
     loja: "",
     periodo: "manha",
     valor: "",
     tipoDia: "trabalhado",
-    horaPersonalizada: ""
+    horaInicio: "",
+    horaFim: ""
   });
 
   useEffect(() => {
@@ -41,7 +43,20 @@ export default function VendedoraPage() {
   }, []);
 
   async function salvar() {
+    setErrorMsg("");
     if (!userId || !data.loja || !data.dia) return;
+
+    // Verificar horário inválido se for personalizado
+    if (data.periodo === "personalizado") {
+      if (!data.horaInicio || !data.horaFim) {
+        setErrorMsg("Preencha os horários de início e fim.");
+        return;
+      }
+      if (data.horaFim <= data.horaInicio) {
+        setErrorMsg("O horário de fim deve ser após o início.");
+        return;
+      }
+    }
 
     const inserts: any[] = [];
 
@@ -53,18 +68,22 @@ export default function VendedoraPage() {
       });
       await supabase.from("seller_days").upsert(inserts, { onConflict: "seller_id,day" });
     } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
+      const period = data.periodo === "personalizado"
+        ? `${data.horaInicio} às ${data.horaFim}`
+        : data.periodo;
+
       const sale = {
         seller_id: userId,
         store_id: data.loja,
         sale_date: data.dia,
-        period: data.periodo,
+        period,
         amount: parseFloat(data.valor.replace(",", "."))
       };
       await supabase.from("sales").upsert([sale], { onConflict: "seller_id,sale_date,store_id,period" });
     }
 
     alert("Lançamento salvo!");
-    setData((prev) => ({ ...prev, valor: "", horaPersonalizada: "" }));
+    setData((prev) => ({ ...prev, valor: "", horaInicio: "", horaFim: "" }));
   }
 
   if (loading) return <div className="p-6">Carregando…</div>;
@@ -74,6 +93,8 @@ export default function VendedoraPage() {
       <h1 className="text-xl font-semibold">Olá, {name}</h1>
 
       <div className="grid gap-3 max-w-md">
+        {errorMsg && <div className="text-red-600 text-sm font-medium">{errorMsg}</div>}
+
         <label className="text-sm font-medium">Dia</label>
         <input
           type="date"
@@ -106,13 +127,26 @@ export default function VendedoraPage() {
         </select>
 
         {data.periodo === "personalizado" && (
-          <input
-            type="text"
-            placeholder="Ex: 11h às 17h"
-            className="border rounded p-2"
-            value={data.horaPersonalizada}
-            onChange={(e) => setData((prev) => ({ ...prev, horaPersonalizada: e.target.value }))}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs">Início</label>
+              <input
+                type="time"
+                className="border rounded p-2 w-full"
+                value={data.horaInicio}
+                onChange={(e) => setData((prev) => ({ ...prev, horaInicio: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs">Fim</label>
+              <input
+                type="time"
+                className="border rounded p-2 w-full"
+                value={data.horaFim}
+                onChange={(e) => setData((prev) => ({ ...prev, horaFim: e.target.value }))}
+              />
+            </div>
+          </div>
         )}
 
         <label className="text-sm font-medium">Valor vendido (R$)</label>
