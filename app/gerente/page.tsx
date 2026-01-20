@@ -96,7 +96,7 @@ export default function GerentePage() {
     vendas?.forEach((v) => {
       if (!vendedores[v.seller_id]) {
         vendedores[v.seller_id] = {
-          nome: v.profiles?.name || "",
+          nome: v.profiles?.[0]?.name || "",
           total: 0,
         };
       }
