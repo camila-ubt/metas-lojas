@@ -5,72 +5,159 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function VendedoraPage() {
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [name, setName] = useState<string>("");
+  const [stores, setStores] = useState<any[]>([]);
+  const [month, setMonth] = useState(new Date());
+  const [sales, setSales] = useState<Record<string, string>>(/** key = YYYY-MM-DD_period */ {});
+  const [presencas, setPresencas] = useState<Record<string, string>>(/** key = YYYY-MM-DD */ {});
 
-  // 🔒 Proteção da rota (somente vendedora)
   useEffect(() => {
-    async function protect() {
-      const { data } = await supabase.auth.getSession();
+    (async () => {
+      const { data: session } = await supabase.auth.getSession();
+      const id = session.session?.user.id;
+      if (!id) return;
+      setUserId(id);
 
-      if (!data.session) {
+      const { data: prof } = await supabase.from("profiles").select("name, role").eq("id", id).single();
+      if (!prof || prof.role !== "vendedora") {
         window.location.href = "/";
         return;
       }
 
-      const { data: prof, error } = await supabase
-        .from("profiles")
-        .select("role, nome")
-        .eq("id", data.session.user.id)
-        .single();
+      setName(prof.name);
 
-      if (error || !prof) {
-        await supabase.auth.signOut();
-        window.location.href = "/";
-        return;
-      }
-
-      // ❌ gerente não entra aqui
-      if (prof.role !== "vendedora") {
-        window.location.href = "/gerente";
-        return;
-      }
+      const { data: st } = await supabase.from("stores").select("id, name").order("id");
+      setStores(st || []);
 
       setLoading(false);
+    })();
+  }, []);
+
+  const diasDoMes = Array.from({ length: new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate() }, (_, i) => {
+    const d = new Date(month.getFullYear(), month.getMonth(), i + 1);
+    return d.toISOString().slice(0, 10);
+  });
+
+  function setVenda(dia: string, period: string, valor: string) {
+    setSales((prev) => ({ ...prev, [`${dia}_${period}`]: valor }));
+  }
+
+  function setTipoDia(dia: string, tipo: string) {
+    setPresencas((prev) => ({ ...prev, [dia]: tipo }));
+  }
+
+  async function salvarTudo() {
+    if (!userId) return;
+    const vendas: any[] = [];
+    const presencasData: any[] = [];
+
+    for (const [chave, valor] of Object.entries(sales)) {
+      const [dia, period] = chave.split("_");
+      const num = parseFloat(valor.replace(",", "."));
+      if (!isNaN(num) && num > 0) {
+        for (const loja of stores) {
+          vendas.push({
+            seller_id: userId,
+            store_id: loja.id,
+            period,
+            sale_date: dia,
+            amount: num,
+          });
+        }
+      }
     }
 
-    protect();
-  }, []);
+    for (const [dia, tipo] of Object.entries(presencas)) {
+      if (tipo) {
+        presencasData.push({ seller_id: userId, day: dia, type: tipo });
+      }
+    }
+
+    if (vendas.length > 0) {
+      await supabase.from("sales").upsert(vendas, {
+        onConflict: "seller_id,sale_date,store_id,period",
+      });
+    }
+
+    if (presencasData.length > 0) {
+      await supabase.from("seller_days").upsert(presencasData, {
+        onConflict: "seller_id,day",
+      });
+    }
+
+    alert("Lançamentos salvos!");
+  }
 
   if (loading) return <div className="p-6">Carregando…</div>;
 
-  // ✅ DASHBOARD DA VENDEDORA
   return (
-    <main className="min-h-screen p-6 space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Dashboard da Vendedora</h1>
+    <main className="p-4 space-y-6">
+      <h1 className="text-xl font-semibold">Olá, {name}</h1>
 
-        <button
-          className="border rounded-lg px-3 py-2 text-sm"
-          onClick={async () => {
-            await supabase.auth.signOut();
-            window.location.href = "/";
+      <div className="flex items-center gap-2">
+        <label>Mês:</label>
+        <input
+          type="month"
+          value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
+          onChange={(e) => {
+            const [y, m] = e.target.value.split("-").map(Number);
+            setMonth(new Date(y, m - 1, 1));
           }}
-        >
-          Sair
-        </button>
-      </header>
+          className="border rounded p-2"
+        />
+      </div>
 
-      <section className="border rounded-2xl p-4 space-y-2">
-        <h2 className="font-semibold">Lançamento de Vendas</h2>
-        <p className="text-sm opacity-70">
-          Aqui você irá lançar suas vendas por dia e período.
-        </p>
+      <table className="w-full border text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-1">Dia</th>
+            <th className="border p-1">Período</th>
+            <th className="border p-1">Valor Vendido</th>
+            <th className="border p-1">Tipo de Dia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {diasDoMes.map((dia) => (
+            ["manha", "noite"].map((period, idx) => (
+              <tr key={`${dia}_${period}`} className={idx % 2 ? "bg-gray-50" : ""}>
+                <td className="border px-2 py-1">{idx === 0 ? dia : ""}</td>
+                <td className="border px-2 py-1">{period}</td>
+                <td className="border px-2 py-1">
+                  <input
+                    type="number"
+                    className="w-full border rounded p-1"
+                    step="0.01"
+                    value={sales[`${dia}_${period}`] || ""}
+                    onChange={(e) => setVenda(dia, period, e.target.value)}
+                  />
+                </td>
+                <td className="border px-2 py-1">
+                  {period === "manha" && (
+                    <select
+                      value={presencas[dia] || ""}
+                      onChange={(e) => setTipoDia(dia, e.target.value)}
+                      className="w-full border rounded p-1"
+                    >
+                      <option value="">--</option>
+                      <option value="trabalhado">Trabalhado</option>
+                      <option value="folga">Folga</option>
+                      <option value="falta">Falta</option>
+                    </select>
+                  )}
+                </td>
+              </tr>
+            ))
+          ))}
+        </tbody>
+      </table>
 
-        {/* 🔽 AQUI ENTRA O FORMULÁRIO DE VENDAS (próximo passo) */}
-        <div className="mt-4 text-sm italic opacity-60">
-          (Formulário de vendas será adicionado aqui)
-        </div>
-      </section>
+      <button
+        className="bg-black text-white px-4 py-2 rounded"
+        onClick={salvarTudo}
+      >
+        Salvar Lançamentos
+      </button>
     </main>
   );
 }
