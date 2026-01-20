@@ -68,6 +68,7 @@ export default function Home() {
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={signIn}
             disabled={loading}
             className="flex-1 bg-black text-white rounded-lg p-2"
