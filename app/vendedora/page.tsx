@@ -50,9 +50,8 @@ export default function VendedoraPage() {
 
   async function salvar() {
     setErrorMsg("");
-    if (!userId || !data.loja || !data.dia) return;
+    if (!data.loja || !data.dia) return;
 
-    // Verificar horário inválido se for personalizado
     if (data.periodo === "personalizado") {
       if (!data.horaInicio || !data.horaFim) {
         setErrorMsg("Preencha os horários de início e fim.");
@@ -64,8 +63,16 @@ export default function VendedoraPage() {
       }
     }
 
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) {
+      setErrorMsg("Usuário não autenticado.");
+      return;
+    }
+
+    const userId = userData.user.id;
+
     if (data.tipoDia !== "trabalhado") {
-      await supabase.from("seller_days").upsert(
+      const { error: err } = await supabase.from("seller_days").upsert(
         [
           {
             seller_id: userId,
@@ -75,6 +82,11 @@ export default function VendedoraPage() {
         ],
         { onConflict: "seller_id,day" }
       );
+
+      if (err) {
+        setErrorMsg("Erro ao salvar dia: " + err.message);
+        return;
+      }
     } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
       const period =
         data.periodo === "personalizado"
@@ -89,9 +101,14 @@ export default function VendedoraPage() {
         amount: parseFloat(data.valor.replace(",", ".")),
       };
 
-      await supabase
+      const { error: insertError } = await supabase
         .from("sales")
         .upsert([sale], { onConflict: "seller_id,sale_date,store_id,period" });
+
+      if (insertError) {
+        setErrorMsg("Erro ao salvar venda: " + insertError.message);
+        return;
+      }
     }
 
     alert("Lançamento salvo!");
