@@ -1,7 +1,3 @@
-from pathlib import Path
-
-# Conteúdo corrigido do código VendedoraPage
-codigo_corrigido = """
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,6 +9,7 @@ export default function VendedoraPage() {
   const [name, setName] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
+
   const [data, setData] = useState({
     dia: new Date().toISOString().slice(0, 10),
     loja: "",
@@ -30,7 +27,12 @@ export default function VendedoraPage() {
       if (!id) return;
       setUserId(id);
 
-      const { data: prof } = await supabase.from("profiles").select("name, role").eq("id", id).single();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("name, role")
+        .eq("id", id)
+        .single();
+
       if (!prof || prof.role !== "vendedora") {
         window.location.href = "/";
         return;
@@ -62,36 +64,43 @@ export default function VendedoraPage() {
       }
     }
 
-    const inserts: any[] = [];
-
     if (data.tipoDia !== "trabalhado") {
-      inserts.push({
-        seller_id: userId,
-        day: data.dia,
-        type: data.tipoDia,
-      });
-      await supabase.from("seller_days").upsert(inserts, { onConflict: "seller_id,day" });
+      await supabase.from("seller_days").upsert(
+        [
+          {
+            seller_id: userId,
+            day: data.dia,
+            type: data.tipoDia,
+          },
+        ],
+        { onConflict: "seller_id,day" }
+      );
     } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
-      const user = (await supabase.auth.getUser()).data.user;
+      const period =
+        data.periodo === "personalizado"
+          ? `${data.horaInicio} às ${data.horaFim}`
+          : data.periodo;
 
       const sale = {
-        seller_id: user.id,
+        seller_id: userId,
         store_id: data.loja,
         sale_date: data.dia,
-        period:
-          data.periodo === "personalizado"
-            ? `${data.horaInicio} às ${data.horaFim}`
-            : data.periodo,
+        period,
         amount: parseFloat(data.valor.replace(",", ".")),
       };
 
-      await supabase.from("sales").upsert([sale], {
-        onConflict: "seller_id,sale_date,store_id,period",
-      });
+      await supabase
+        .from("sales")
+        .upsert([sale], { onConflict: "seller_id,sale_date,store_id,period" });
     }
 
     alert("Lançamento salvo!");
-    setData((prev) => ({ ...prev, valor: "", horaInicio: "", horaFim: "" }));
+    setData((prev) => ({
+      ...prev,
+      valor: "",
+      horaInicio: "",
+      horaFim: "",
+    }));
   }
 
   if (loading) return <div className="p-6">Carregando…</div>;
@@ -118,7 +127,9 @@ export default function VendedoraPage() {
           onChange={(e) => setData((prev) => ({ ...prev, loja: e.target.value }))}
         >
           {stores.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
           ))}
         </select>
 
@@ -142,7 +153,9 @@ export default function VendedoraPage() {
                 type="time"
                 className="border rounded p-2 w-full"
                 value={data.horaInicio}
-                onChange={(e) => setData((prev) => ({ ...prev, horaInicio: e.target.value }))}
+                onChange={(e) =>
+                  setData((prev) => ({ ...prev, horaInicio: e.target.value }))
+                }
               />
             </div>
             <div>
@@ -151,7 +164,9 @@ export default function VendedoraPage() {
                 type="time"
                 className="border rounded p-2 w-full"
                 value={data.horaFim}
-                onChange={(e) => setData((prev) => ({ ...prev, horaFim: e.target.value }))}
+                onChange={(e) =>
+                  setData((prev) => ({ ...prev, horaFim: e.target.value }))
+                }
               />
             </div>
           </div>
@@ -177,19 +192,10 @@ export default function VendedoraPage() {
           <option value="falta">Falta</option>
         </select>
 
-        <button
-          className="bg-black text-white rounded p-2 mt-2"
-          onClick={salvar}
-        >
+        <button className="bg-black text-white rounded p-2 mt-2" onClick={salvar}>
           Salvar Lançamento
         </button>
       </div>
     </main>
   );
 }
-"""
-
-# Salvar em arquivo
-path = Path("/mnt/data/VendedoraPage.tsx")
-path.write_text(codigo_corrigido, encoding="utf-8")
-path.name
