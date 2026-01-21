@@ -1,3 +1,7 @@
+from pathlib import Path
+
+# Conteúdo corrigido do código VendedoraPage
+codigo_corrigido = """
 "use client";
 
 import { useEffect, useState } from "react";
@@ -68,18 +72,22 @@ export default function VendedoraPage() {
       });
       await supabase.from("seller_days").upsert(inserts, { onConflict: "seller_id,day" });
     } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
-      const period = data.periodo === "personalizado"
-        ? `${data.horaInicio} às ${data.horaFim}`
-        : data.periodo;
+      const user = (await supabase.auth.getUser()).data.user;
 
       const sale = {
-        seller_id: userId,
+        seller_id: user.id,
         store_id: data.loja,
         sale_date: data.dia,
-        period,
-        amount: parseFloat(data.valor.replace(",", "."))
+        period:
+          data.periodo === "personalizado"
+            ? `${data.horaInicio} às ${data.horaFim}`
+            : data.periodo,
+        amount: parseFloat(data.valor.replace(",", ".")),
       };
-      await supabase.from("sales").upsert([sale], { onConflict: "seller_id,sale_date,store_id,period" });
+
+      await supabase.from("sales").upsert([sale], {
+        onConflict: "seller_id,sale_date,store_id,period",
+      });
     }
 
     alert("Lançamento salvo!");
@@ -179,3 +187,9 @@ export default function VendedoraPage() {
     </main>
   );
 }
+"""
+
+# Salvar em arquivo
+path = Path("/mnt/data/VendedoraPage.tsx")
+path.write_text(codigo_corrigido, encoding="utf-8")
+path.name
