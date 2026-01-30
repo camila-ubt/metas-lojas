@@ -3,6 +3,22 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+// ✅ lista de meses (visual bonito, valor numérico)
+const meses = [
+  { value: 1, label: "Janeiro" },
+  { value: 2, label: "Fevereiro" },
+  { value: 3, label: "Março" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Maio" },
+  { value: 6, label: "Junho" },
+  { value: 7, label: "Julho" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Setembro" },
+  { value: 10, label: "Outubro" },
+  { value: 11, label: "Novembro" },
+  { value: 12, label: "Dezembro" },
+];
+
 export default function ConfiguracoesPage() {
   const hoje = new Date();
   const [month, setMonth] = useState(hoje.getMonth() + 1);
@@ -39,10 +55,9 @@ export default function ConfiguracoesPage() {
   async function salvar() {
     for (const loja of stores) {
       for (const period of ["manha", "noite"]) {
-        const value =
-          document.getElementById(
-            `goal-${loja.id}-${period}`
-          ) as HTMLInputElement;
+        const value = document.getElementById(
+          `goal-${loja.id}-${period}`
+        ) as HTMLInputElement;
 
         if (!value) continue;
 
@@ -68,22 +83,26 @@ export default function ConfiguracoesPage() {
 
   return (
     <main className="space-y-6">
-      <h1 className="text-2xl font-semibold">Metas por Loja e Turno</h1>
+      <h1 className="text-2xl font-semibold">
+        Metas por Loja e Turno
+      </h1>
 
-      {/* Filtro mês/ano */}
+      {/* 🎛️ Filtro mês/ano */}
       <div className="flex gap-3 items-center">
+        {/* ✅ MÊS COM NOME */}
         <select
           className="border rounded p-2"
           value={month}
           onChange={(e) => setMonth(Number(e.target.value))}
         >
-          {Array.from({ length: 12 }).map((_, i) => (
-            <option key={i + 1} value={i + 1}>
-              {i + 1}
+          {meses.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
             </option>
           ))}
         </select>
 
+        {/* ANO */}
         <select
           className="border rounded p-2"
           value={year}
@@ -104,7 +123,7 @@ export default function ConfiguracoesPage() {
         </button>
       </div>
 
-      {/* Metas */}
+      {/* 🏬 Metas por loja */}
       <div className="space-y-6">
         {stores.map((loja) => {
           const metaManha =
