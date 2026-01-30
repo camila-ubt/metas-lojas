@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -44,9 +47,9 @@ export default function Home() {
 
     // 👇 Redirecionamento com base no papel
     if (prof.role === "gerente") {
-      window.location.href = "/gerente";
+      router.replace("/gerente");
     } else {
-      window.location.href = "/vendedora";
+      router.replace("/vendedora");
     }
   }
 
@@ -95,16 +98,16 @@ export default function Home() {
             type="button"
             onClick={signIn}
             disabled={loading}
-            className="flex-1 bg-black text-white rounded-lg p-2"
+            className="flex-1 bg-black text-white rounded-lg p-2 disabled:opacity-50"
           >
-            Entrar
+            {loading ? "Entrando..." : "Entrar"}
           </button>
 
           <button
             type="button"
             onClick={signUp}
             disabled={loading}
-            className="flex-1 border rounded-lg p-2"
+            className="flex-1 border rounded-lg p-2 disabled:opacity-50"
           >
             Cadastrar
           </button>
