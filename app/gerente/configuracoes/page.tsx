@@ -1,189 +1,158 @@
-// app/gerente/configuracoes/page.tsx
-
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-function formatPercent(v: number) {
-  return v.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) + "%";
-}
-
 export default function ConfiguracoesPage() {
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
+  const hoje = new Date();
+  const [month, setMonth] = useState(hoje.getMonth() + 1);
+  const [year, setYear] = useState(hoje.getFullYear());
 
-  const [targets, setTargets] = useState<Record<string, number>>({});
   const [stores, setStores] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
-
-  const totalTarget = useMemo(
-    () => Object.values(targets).reduce((a, b) => a + (b || 0), 0),
-    [targets]
-  );
+  const [goals, setGoals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const { data: st } = await supabase.from("stores").select("id, name").order("id");
-      setStores(st || []);
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year]);
 
-      const { data: r } = await supabase.from("commission_rules").select("id, level, min_pct, percent, emoji, label").order("min_pct");
-      setRules(r || []);
-    })();
-  }, []);
+  async function carregar() {
+    setLoading(true);
 
-  useEffect(() => {
-    (async () => {
-      const start = new Date(month);
-      const mKey = new Date(start.getFullYear(), start.getMonth(), 1).toISOString().slice(0, 10);
+    const { data: lojas } = await supabase
+      .from("stores")
+      .select("id, name")
+      .order("id");
 
-      const { data: t } = await supabase
-        .from("store_targets")
-        .select("store_id, period, target_value")
-        .eq("month", mKey);
+    const { data: metas } = await supabase
+      .from("store_period_goals")
+      .select("*")
+      .eq("month", month)
+      .eq("year", year);
 
-      const map: Record<string, number> = {};
-      (t || []).forEach((r) => {
-        map[`${r.store_id}_${r.period}`] = Number(r.target_value || 0);
-      });
-      setTargets(map);
-    })();
-  }, [month]);
-
-  function setTarget(storeId: number, period: "manha" | "noite", value: number) {
-    setTargets((prev) => ({ ...prev, [`${storeId}_${period}`]: value }));
+    setStores(lojas || []);
+    setGoals(metas || []);
+    setLoading(false);
   }
 
-  async function saveTargets() {
-    const start = new Date(month);
-    const mKey = new Date(start.getFullYear(), start.getMonth(), 1).toISOString().slice(0, 10);
+  async function salvar() {
+    for (const loja of stores) {
+      for (const period of ["manha", "noite"]) {
+        const value =
+          document.getElementById(
+            `goal-${loja.id}-${period}`
+          ) as HTMLInputElement;
 
-    const rows: any[] = [];
-    for (const st of stores) {
-      for (const period of ["manha", "noite"] as const) {
-        const v = Number(targets[`${st.id}_${period}`] || 0);
-        rows.push({ month: mKey, store_id: st.id, period, target_value: v });
+        if (!value) continue;
+
+        await supabase.from("store_period_goals").upsert(
+          {
+            store_id: loja.id,
+            period,
+            month,
+            year,
+            goal_value: Number(value.value),
+          },
+          {
+            onConflict: "store_id,period,month,year",
+          }
+        );
       }
     }
 
-    const { error } = await supabase
-      .from("store_targets")
-      .upsert(rows, { onConflict: "month,store_id,period" });
-
-    if (error) alert("Erro ao salvar metas: " + error.message);
-    else alert("Metas salvas com sucesso!");
+    alert("Metas salvas com sucesso!");
   }
 
-  function setRuleField(ruleId: number, field: string, value: string) {
-    setRules((prev) =>
-      prev.map((r) =>
-        r.id === ruleId ? { ...r, [field]: field === "percent" || field === "min_pct" ? parseFloat(value) : value } : r
-      )
-    );
-  }
-
-  async function saveRules() {
-    const { error } = await supabase.from("commission_rules").upsert(rules, {
-      onConflict: "id",
-    });
-
-    if (error) alert("Erro ao salvar regras: " + error.message);
-    else alert("Regras salvas com sucesso!");
-  }
+  if (loading) return <div className="p-6">Carregando…</div>;
 
   return (
-    <main className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Configurações</h1>
+    <main className="space-y-6">
+      <h1 className="text-2xl font-semibold">Metas por Loja e Turno</h1>
 
-      <section className="border rounded-xl p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Metas por Loja e Turno</h2>
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="border rounded p-2"
-          />
-        </div>
+      {/* Filtro mês/ano */}
+      <div className="flex gap-3 items-center">
+        <select
+          className="border rounded p-2"
+          value={month}
+          onChange={(e) => setMonth(Number(e.target.value))}
+        >
+          {Array.from({ length: 12 }).map((_, i) => (
+            <option key={i + 1} value={i + 1}>
+              {i + 1}
+            </option>
+          ))}
+        </select>
 
-        <div className="grid gap-3">
-          {stores.map((st) => (
-            <div key={st.id} className="border rounded-xl p-4">
-              <h3 className="font-semibold text-lg mb-2">{st.name}</h3>
-              <div className="grid md:grid-cols-2 gap-3">
-                {(["manha", "noite"] as const).map((period) => {
-                  const key = `${st.id}_${period}`;
-                  const value = targets[key] || 0;
-                  return (
-                    <div key={key} className="space-y-2">
-                      <label className="block text-sm font-medium">
-                        Meta {period === "manha" ? "Manhã" : "Noite"}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="w-full border rounded p-2"
-                        value={value}
-                        onChange={(e) => setTarget(st.id, period, Number(e.target.value))}
-                      />
-                    </div>
-                  );
-                })}
+        <select
+          className="border rounded p-2"
+          value={year}
+          onChange={(e) => setYear(Number(e.target.value))}
+        >
+          {[2024, 2025, 2026, 2027].map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+
+        <button
+          className="bg-black text-white rounded px-4 py-2"
+          onClick={salvar}
+        >
+          Salvar metas
+        </button>
+      </div>
+
+      {/* Metas */}
+      <div className="space-y-6">
+        {stores.map((loja) => {
+          const metaManha =
+            goals.find(
+              (g) =>
+                g.store_id === loja.id && g.period === "manha"
+            )?.goal_value || 0;
+
+          const metaNoite =
+            goals.find(
+              (g) =>
+                g.store_id === loja.id && g.period === "noite"
+            )?.goal_value || 0;
+
+          return (
+            <div
+              key={loja.id}
+              className="border rounded p-4 space-y-3"
+            >
+              <h2 className="font-semibold uppercase">
+                {loja.name}
+              </h2>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm">Manhã</label>
+                  <input
+                    id={`goal-${loja.id}-manha`}
+                    defaultValue={metaManha}
+                    type="number"
+                    className="border rounded p-2 w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm">Noite</label>
+                  <input
+                    id={`goal-${loja.id}-noite`}
+                    defaultValue={metaNoite}
+                    type="number"
+                    className="border rounded p-2 w-full"
+                  />
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-
-        <button className="bg-black text-white rounded-lg px-4 py-2" onClick={saveTargets}>
-          Salvar Metas
-        </button>
-      </section>
-
-      <section className="border rounded-xl p-4 space-y-4">
-        <h2 className="text-lg font-semibold">Regras de Comissão</h2>
-        <div className="grid gap-4">
-          {rules.map((r) => (
-            <div key={r.id} className="grid md:grid-cols-5 gap-2 items-center">
-              <input
-                className="border rounded p-2"
-                value={r.emoji || ""}
-                placeholder="Emoji"
-                onChange={(e) => setRuleField(r.id, "emoji", e.target.value)}
-              />
-              <input
-                className="border rounded p-2"
-                value={r.label || ""}
-                placeholder="Descrição"
-                onChange={(e) => setRuleField(r.id, "label", e.target.value)}
-              />
-              <input
-                type="number"
-                step="0.01"
-                className="border rounded p-2"
-                value={r.min_pct || 0}
-                placeholder="Mínimo (%)"
-                onChange={(e) => setRuleField(r.id, "min_pct", e.target.value)}
-              />
-              <input
-                type="number"
-                step="0.01"
-                className="border rounded p-2"
-                value={r.percent || 0}
-                placeholder="Comissão (%)"
-                onChange={(e) => setRuleField(r.id, "percent", e.target.value)}
-              />
-              <div className="text-sm opacity-70">
-                {formatPercent(r.percent || 0)} de comissão para metas ≥ {formatPercent(r.min_pct || 0)}
-              </div>
-            </div>
-          ))}
-        </div>
-        <button className="bg-black text-white rounded-lg px-4 py-2" onClick={saveRules}>
-          Salvar Regras
-        </button>
-      </section>
+          );
+        })}
+      </div>
     </main>
   );
 }

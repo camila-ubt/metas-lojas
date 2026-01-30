@@ -1,29 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type Linha = {
-  store_id: number;
-  store_name: string;
+type LinhaPeriodo = {
   period: "manha" | "noite";
   meta: number;
   vendido: number;
 };
 
-export default function AcompanhamentoGerentePage() {
-  const hoje = new Date();
+export default function AcompanhamentoLojaPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
 
-  const [month, setMonth] = useState(hoje.getMonth() + 1);
-  const [year, setYear] = useState(hoje.getFullYear());
+  const storeId = Number(params.storeId);
+  const month = Number(searchParams.get("month"));
+  const year = Number(searchParams.get("year"));
+
   const [loading, setLoading] = useState(true);
-  const [dados, setDados] = useState<Linha[]>([]);
+  const [storeName, setStoreName] = useState("");
+  const [dados, setDados] = useState<LinhaPeriodo[]>([]);
 
   useEffect(() => {
     carregar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, year]);
+  }, [storeId, month, year]);
 
   async function carregar() {
     setLoading(true);
@@ -44,16 +46,20 @@ export default function AcompanhamentoGerentePage() {
       return;
     }
 
-    // 🏬 lojas
-    const { data: lojas } = await supabase
+    // 🏬 nome da loja
+    const { data: loja } = await supabase
       .from("stores")
-      .select("id, name")
-      .order("id");
+      .select("name")
+      .eq("id", storeId)
+      .single();
+
+    setStoreName(loja?.name || "");
 
     // 🎯 metas
     const { data: metas } = await supabase
       .from("store_period_goals")
       .select("*")
+      .eq("store_id", storeId)
       .eq("month", month)
       .eq("year", year);
 
@@ -63,38 +69,27 @@ export default function AcompanhamentoGerentePage() {
 
     const { data: vendas } = await supabase
       .from("sales")
-      .select("store_id, period, amount")
+      .select("period, amount")
+      .eq("store_id", storeId)
       .gte("sale_date", inicio)
       .lte("sale_date", fim);
 
-    const linhas: Linha[] = [];
+    const linhas: LinhaPeriodo[] = [];
 
-    for (const loja of lojas || []) {
-      for (const period of ["manha", "noite"] as const) {
-        const meta =
-          metas?.find(
-            (m) =>
-              m.store_id === loja.id &&
-              m.period === period
-          )?.goal_value || 0;
+    for (const period of ["manha", "noite"] as const) {
+      const meta =
+        metas?.find((m) => m.period === period)?.goal_value || 0;
 
-        const vendido =
-          vendas
-            ?.filter(
-              (v) =>
-                v.store_id === loja.id &&
-                v.period === period
-            )
-            .reduce((s, v) => s + Number(v.amount), 0) || 0;
+      const vendido =
+        vendas
+          ?.filter((v) => v.period === period)
+          .reduce((s, v) => s + Number(v.amount), 0) || 0;
 
-        linhas.push({
-          store_id: loja.id,
-          store_name: loja.name,
-          period,
-          meta,
-          vendido,
-        });
-      }
+      linhas.push({
+        period,
+        meta,
+        vendido,
+      });
     }
 
     setDados(linhas);
@@ -106,41 +101,16 @@ export default function AcompanhamentoGerentePage() {
   return (
     <main className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold">
-        Acompanhamento de Metas
+        {storeName}
       </h1>
 
-      {/* 🎛️ FILTRO */}
-      <div className="flex gap-3 items-center">
-        <select
-          className="border rounded p-2"
-          value={month}
-          onChange={(e) => setMonth(Number(e.target.value))}
-        >
-          {Array.from({ length: 12 }).map((_, i) => (
-            <option key={i + 1} value={i + 1}>
-              {i + 1}
-            </option>
-          ))}
-        </select>
+      <p className="text-sm text-gray-600">
+        Acompanhamento — {month}/{year}
+      </p>
 
-        <select
-          className="border rounded p-2"
-          value={year}
-          onChange={(e) => setYear(Number(e.target.value))}
-        >
-          {[2024, 2025, 2026, 2027].map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* 📊 TABELA */}
       <table className="w-full border text-sm">
         <thead className="bg-gray-100">
           <tr>
-            <th className="border p-2">Loja</th>
             <th className="border p-2">Período</th>
             <th className="border p-2 text-right">Meta</th>
             <th className="border p-2 text-right">Vendido</th>
@@ -155,24 +125,8 @@ export default function AcompanhamentoGerentePage() {
 
             return (
               <tr key={i}>
-                {/* 🔗 LINK DA LOJA */}
-                <td className="border p-2">
-                  <Link
-                    href={`/gerente/acompanhamento/loja/${d.store_id}?month=${month}&year=${year}`}
-                    className="text-blue-600 underline"
-                  >
-                    {d.store_name}
-                  </Link>
-                </td>
-
-                {/* 🔗 LINK DO PERÍODO */}
-                <td className="border p-2 capitalize">
-                  <Link
-                    href={`/gerente/acompanhamento/periodo/${d.period}?month=${month}&year=${year}`}
-                    className="underline"
-                  >
-                    {d.period}
-                  </Link>
+                <td className="border p-2 capitalize font-medium">
+                  {d.period}
                 </td>
 
                 <td className="border p-2 text-right">
