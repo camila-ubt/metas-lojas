@@ -7,6 +7,9 @@ export default function VendedoraPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [name, setName] = useState<string>("");
+  const [nameEdit, setNameEdit] = useState<string>(""); // nome temporário do modal
+  const [modalNomeAberto, setModalNomeAberto] = useState(false);
+
   const [stores, setStores] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
 
@@ -25,7 +28,6 @@ export default function VendedoraPage() {
     (async () => {
       const { data: session } = await supabase.auth.getSession();
       const id = session.session?.user.id;
-
       if (!id) return;
 
       setUserId(id);
@@ -42,6 +44,7 @@ export default function VendedoraPage() {
       }
 
       setName(prof.name ?? "");
+      setNameEdit(prof.name ?? "");
 
       const { data: st } = await supabase
         .from("stores")
@@ -57,21 +60,22 @@ export default function VendedoraPage() {
 
   // ✏️ SALVAR NOME DA VENDEDORA
   async function salvarNome() {
-    if (!name.trim()) {
+    if (!nameEdit.trim()) {
       alert("O nome não pode ficar vazio.");
       return;
     }
 
     const { error } = await supabase
       .from("profiles")
-      .update({ name: name.trim() })
+      .update({ name: nameEdit.trim() })
       .eq("id", userId);
 
     if (error) {
       alert("Erro ao atualizar nome.");
       console.error(error);
     } else {
-      alert("Nome atualizado com sucesso!");
+      setName(nameEdit.trim());
+      setModalNomeAberto(false);
     }
   }
 
@@ -143,7 +147,6 @@ export default function VendedoraPage() {
     }
 
     alert("Lançamento salvo!");
-
     setData((prev) => ({
       ...prev,
       valor: "",
@@ -158,21 +161,21 @@ export default function VendedoraPage() {
     <main className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Olá, {name}</h1>
 
-      {/* ✏️ EDITAR NOME */}
-      <div className="max-w-md border rounded p-3 space-y-2">
-        <label className="text-sm font-medium">Seu nome no sistema</label>
-
-        <input
-          className="border rounded p-2 w-full"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      {/* 👤 BLOCO DO NOME */}
+      <div className="max-w-md border rounded p-3 flex items-center justify-between">
+        <div>
+          <div className="text-sm text-gray-600">Seu nome no sistema</div>
+          <div className="text-gray-900">{name}</div>
+        </div>
 
         <button
-          className="bg-gray-800 text-white rounded px-3 py-1 text-sm"
-          onClick={salvarNome}
+          className="text-sm text-blue-600 underline"
+          onClick={() => {
+            setNameEdit(name);
+            setModalNomeAberto(true);
+          }}
         >
-          Salvar nome
+          Editar
         </button>
       </div>
 
@@ -223,34 +226,22 @@ export default function VendedoraPage() {
 
         {data.periodo === "personalizado" && (
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs">Início</label>
-              <input
-                type="time"
-                className="border rounded p-2 w-full"
-                value={data.horaInicio}
-                onChange={(e) =>
-                  setData((prev) => ({
-                    ...prev,
-                    horaInicio: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <label className="text-xs">Fim</label>
-              <input
-                type="time"
-                className="border rounded p-2 w-full"
-                value={data.horaFim}
-                onChange={(e) =>
-                  setData((prev) => ({
-                    ...prev,
-                    horaFim: e.target.value,
-                  }))
-                }
-              />
-            </div>
+            <input
+              type="time"
+              className="border rounded p-2"
+              value={data.horaInicio}
+              onChange={(e) =>
+                setData((prev) => ({ ...prev, horaInicio: e.target.value }))
+              }
+            />
+            <input
+              type="time"
+              className="border rounded p-2"
+              value={data.horaFim}
+              onChange={(e) =>
+                setData((prev) => ({ ...prev, horaFim: e.target.value }))
+              }
+            />
           </div>
         )}
 
@@ -285,6 +276,42 @@ export default function VendedoraPage() {
           Salvar Lançamento
         </button>
       </div>
+
+      {/* 🪟 MODAL EDITAR NOME */}
+      {modalNomeAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black bg-opacity-40"
+            onClick={() => setModalNomeAberto(false)}
+          />
+
+          <div className="relative bg-white rounded-lg shadow-lg p-6 w-full max-w-sm z-10 space-y-4">
+            <h2 className="text-lg font-semibold">Editar nome</h2>
+
+            <input
+              className="border rounded p-2 w-full"
+              value={nameEdit}
+              onChange={(e) => setNameEdit(e.target.value)}
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                className="bg-gray-200 rounded px-4 py-2"
+                onClick={() => setModalNomeAberto(false)}
+              >
+                Cancelar
+              </button>
+
+              <button
+                className="bg-black text-white rounded px-4 py-2"
+                onClick={salvarNome}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
