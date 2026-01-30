@@ -31,19 +31,26 @@ export default function RelatoriosPage() {
 
   async function carregarRelatorio() {
     setLoading(true);
+
     const { data, error } = await supabase
       .from("sales")
       .select(`amount, sale_date, stores(name), profiles(name)`);
 
-    if (error) {
-      console.error("Erro ao carregar relatório:", error.message);
+    if (error || !data) {
+      console.error("Erro ao carregar relatório:", error?.message);
       setLoading(false);
       return;
     }
 
-    let resultado = data.map((v) => ({
-      loja: v.stores?.name,
-      vendedora: v.profiles?.name,
+    let resultado = data.map((v: any) => ({
+      loja: Array.isArray(v.stores)
+        ? v.stores[0]?.name
+        : v.stores?.name,
+
+      vendedora: Array.isArray(v.profiles)
+        ? v.profiles[0]?.name
+        : v.profiles?.name,
+
       valor: v.amount,
       data: v.sale_date,
     }));
@@ -67,11 +74,16 @@ export default function RelatoriosPage() {
     const worksheet = XLSX.utils.json_to_sheet(relatorio);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório");
+
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",
       type: "array",
     });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+
+    const blob = new Blob([excelBuffer], {
+      type: "application/octet-stream",
+    });
+
     saveAs(blob, "relatorio-vendas.xlsx");
   }
 
@@ -128,7 +140,9 @@ export default function RelatoriosPage() {
         </tbody>
         <tfoot>
           <tr className="font-semibold bg-gray-50">
-            <td className="p-2 border" colSpan={3}>Total geral</td>
+            <td className="p-2 border" colSpan={3}>
+              Total geral
+            </td>
             <td className="p-2 border">
               {total.toLocaleString("pt-BR", {
                 style: "currency",
@@ -149,7 +163,7 @@ export default function RelatoriosPage() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold mb-2">Gráfico de Desempenho</h2>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={relatorio} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <BarChart data={relatorio}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="vendedora" />
             <YAxis />
