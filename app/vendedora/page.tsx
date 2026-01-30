@@ -17,30 +17,37 @@ export default function VendedoraPage() {
     valor: "",
     tipoDia: "trabalhado",
     horaInicio: "",
-    horaFim: ""
+    horaFim: "",
   });
 
+  // 🔹 Carregar sessão, perfil e lojas
   useEffect(() => {
     (async () => {
       const { data: session } = await supabase.auth.getSession();
       const id = session.session?.user.id;
+
       if (!id) return;
+
       setUserId(id);
 
-      const { data: prof } = await supabase
+      const { data: prof, error: profError } = await supabase
         .from("profiles")
         .select("name, role")
         .eq("id", id)
         .single();
 
-      if (!prof || prof.role !== "vendedora") {
+      if (profError || !prof || prof.role !== "vendedora") {
         window.location.href = "/";
         return;
       }
 
-      setName(prof.name);
+      setName(prof.name ?? "");
 
-      const { data: st } = await supabase.from("stores").select("id, name").order("id");
+      const { data: st } = await supabase
+        .from("stores")
+        .select("id, name")
+        .order("id");
+
       setStores(st || []);
       setData((prev) => ({ ...prev, loja: st?.[0]?.id || "" }));
 
@@ -48,8 +55,30 @@ export default function VendedoraPage() {
     })();
   }, []);
 
+  // ✏️ SALVAR NOME DA VENDEDORA
+  async function salvarNome() {
+    if (!name.trim()) {
+      alert("O nome não pode ficar vazio.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ name: name.trim() })
+      .eq("id", userId);
+
+    if (error) {
+      alert("Erro ao atualizar nome.");
+      console.error(error);
+    } else {
+      alert("Nome atualizado com sucesso!");
+    }
+  }
+
+  // 💾 SALVAR LANÇAMENTO
   async function salvar() {
     setErrorMsg("");
+
     if (!data.loja || !data.dia) return;
 
     if (data.periodo === "personalizado") {
@@ -69,13 +98,13 @@ export default function VendedoraPage() {
       return;
     }
 
-    const userId = userData.user.id;
+    const sellerId = userData.user.id;
 
     if (data.tipoDia !== "trabalhado") {
-      const { error: err } = await supabase.from("seller_days").upsert(
+      const { error } = await supabase.from("seller_days").upsert(
         [
           {
-            seller_id: userId,
+            seller_id: sellerId,
             day: data.dia,
             type: data.tipoDia,
           },
@@ -83,8 +112,8 @@ export default function VendedoraPage() {
         { onConflict: "seller_id,day" }
       );
 
-      if (err) {
-        setErrorMsg("Erro ao salvar dia: " + err.message);
+      if (error) {
+        setErrorMsg("Erro ao salvar dia: " + error.message);
         return;
       }
     } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
@@ -94,24 +123,27 @@ export default function VendedoraPage() {
           : data.periodo;
 
       const sale = {
-        seller_id: userId,
+        seller_id: sellerId,
         store_id: data.loja,
         sale_date: data.dia,
         period,
         amount: parseFloat(data.valor.replace(",", ".")),
       };
 
-      const { error: insertError } = await supabase
+      const { error } = await supabase
         .from("sales")
-        .upsert([sale], { onConflict: "seller_id,sale_date,store_id,period" });
+        .upsert([sale], {
+          onConflict: "seller_id,sale_date,store_id,period",
+        });
 
-      if (insertError) {
-        setErrorMsg("Erro ao salvar venda: " + insertError.message);
+      if (error) {
+        setErrorMsg("Erro ao salvar venda: " + error.message);
         return;
       }
     }
 
     alert("Lançamento salvo!");
+
     setData((prev) => ({
       ...prev,
       valor: "",
@@ -126,22 +158,47 @@ export default function VendedoraPage() {
     <main className="p-6 space-y-4">
       <h1 className="text-xl font-semibold">Olá, {name}</h1>
 
+      {/* ✏️ EDITAR NOME */}
+      <div className="max-w-md border rounded p-3 space-y-2">
+        <label className="text-sm font-medium">Seu nome no sistema</label>
+
+        <input
+          className="border rounded p-2 w-full"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+
+        <button
+          className="bg-gray-800 text-white rounded px-3 py-1 text-sm"
+          onClick={salvarNome}
+        >
+          Salvar nome
+        </button>
+      </div>
+
+      {/* 🧾 LANÇAMENTO */}
       <div className="grid gap-3 max-w-md">
-        {errorMsg && <div className="text-red-600 text-sm font-medium">{errorMsg}</div>}
+        {errorMsg && (
+          <div className="text-red-600 text-sm font-medium">{errorMsg}</div>
+        )}
 
         <label className="text-sm font-medium">Dia</label>
         <input
           type="date"
           className="border rounded p-2"
           value={data.dia}
-          onChange={(e) => setData((prev) => ({ ...prev, dia: e.target.value }))}
+          onChange={(e) =>
+            setData((prev) => ({ ...prev, dia: e.target.value }))
+          }
         />
 
         <label className="text-sm font-medium">Loja</label>
         <select
           className="border rounded p-2"
           value={data.loja}
-          onChange={(e) => setData((prev) => ({ ...prev, loja: e.target.value }))}
+          onChange={(e) =>
+            setData((prev) => ({ ...prev, loja: e.target.value }))
+          }
         >
           {stores.map((s) => (
             <option key={s.id} value={s.id}>
@@ -154,7 +211,9 @@ export default function VendedoraPage() {
         <select
           className="border rounded p-2"
           value={data.periodo}
-          onChange={(e) => setData((prev) => ({ ...prev, periodo: e.target.value }))}
+          onChange={(e) =>
+            setData((prev) => ({ ...prev, periodo: e.target.value }))
+          }
         >
           <option value="manha">Manhã</option>
           <option value="noite">Noite</option>
@@ -171,7 +230,10 @@ export default function VendedoraPage() {
                 className="border rounded p-2 w-full"
                 value={data.horaInicio}
                 onChange={(e) =>
-                  setData((prev) => ({ ...prev, horaInicio: e.target.value }))
+                  setData((prev) => ({
+                    ...prev,
+                    horaInicio: e.target.value,
+                  }))
                 }
               />
             </div>
@@ -182,7 +244,10 @@ export default function VendedoraPage() {
                 className="border rounded p-2 w-full"
                 value={data.horaFim}
                 onChange={(e) =>
-                  setData((prev) => ({ ...prev, horaFim: e.target.value }))
+                  setData((prev) => ({
+                    ...prev,
+                    horaFim: e.target.value,
+                  }))
                 }
               />
             </div>
@@ -195,21 +260,28 @@ export default function VendedoraPage() {
           step="0.01"
           className="border rounded p-2"
           value={data.valor}
-          onChange={(e) => setData((prev) => ({ ...prev, valor: e.target.value }))}
+          onChange={(e) =>
+            setData((prev) => ({ ...prev, valor: e.target.value }))
+          }
         />
 
         <label className="text-sm font-medium">Tipo de dia</label>
         <select
           className="border rounded p-2"
           value={data.tipoDia}
-          onChange={(e) => setData((prev) => ({ ...prev, tipoDia: e.target.value }))}
+          onChange={(e) =>
+            setData((prev) => ({ ...prev, tipoDia: e.target.value }))
+          }
         >
           <option value="trabalhado">Trabalhado</option>
           <option value="folga">Folga</option>
           <option value="falta">Falta</option>
         </select>
 
-        <button className="bg-black text-white rounded p-2 mt-2" onClick={salvar}>
+        <button
+          className="bg-black text-white rounded p-2 mt-2"
+          onClick={salvar}
+        >
           Salvar Lançamento
         </button>
       </div>
