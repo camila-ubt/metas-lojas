@@ -1,5 +1,3 @@
-// app/gerente/configuracoes/comissoes/page.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -24,22 +22,36 @@ export default function RegrasComissaoPage() {
         .from("commission_rules")
         .select("*")
         .order("min_pct", { ascending: true });
+
       if (error) {
         alert("Erro ao carregar regras: " + error.message);
       } else {
-        setRegras(data || []);
+        setRegras((data as Regra[]) || []);
       }
+
       setCarregando(false);
     }
+
     carregar();
   }, []);
 
-  function atualizarRegra(index: number, campo: keyof Regra, valor: string) {
+  function atualizarRegra(
+    index: number,
+    campo: keyof Regra,
+    valor: string
+  ) {
     const atualizadas = [...regras];
-    if (campo === "level") atualizadas[index][campo] = parseInt(valor);
-    else if (campo === "min_pct" || campo === "percent")
-      atualizadas[index][campo] = parseFloat(valor.replace(",", "."));
-    else atualizadas[index][campo] = valor;
+    const regra = { ...atualizadas[index] };
+
+    if (campo === "level") {
+      regra.level = parseInt(valor);
+    } else if (campo === "min_pct" || campo === "percent") {
+      regra[campo] = parseFloat(valor.replace(",", "."));
+    } else if (campo === "emoji" || campo === "label") {
+      regra[campo] = valor;
+    }
+
+    atualizadas[index] = regra;
     setRegras(atualizadas);
   }
 
@@ -63,10 +75,13 @@ export default function RegrasComissaoPage() {
       emoji: "💰",
       label: "",
     };
+
     setRegras([...regras, nova]);
   }
 
-  if (carregando) return <div className="p-6">Carregando…</div>;
+  if (carregando) {
+    return <div className="p-6">Carregando…</div>;
+  }
 
   return (
     <main className="p-6 space-y-6">
@@ -90,28 +105,36 @@ export default function RegrasComissaoPage() {
                 onChange={(e) => atualizarRegra(i, "emoji", e.target.value)}
                 placeholder="Emoji"
               />
+
               <input
                 className="border rounded p-2"
                 value={r.label}
                 onChange={(e) => atualizarRegra(i, "label", e.target.value)}
                 placeholder="Nome da Faixa"
               />
+
               <input
                 type="number"
                 step="0.01"
                 className="border rounded p-2"
                 value={r.min_pct}
-                onChange={(e) => atualizarRegra(i, "min_pct", e.target.value)}
+                onChange={(e) =>
+                  atualizarRegra(i, "min_pct", e.target.value)
+                }
                 placeholder="Mínimo (%)"
               />
+
               <input
                 type="number"
                 step="0.01"
                 className="border rounded p-2"
                 value={r.percent}
-                onChange={(e) => atualizarRegra(i, "percent", e.target.value)}
+                onChange={(e) =>
+                  atualizarRegra(i, "percent", e.target.value)
+                }
                 placeholder="% Comissão"
               />
+
               <input
                 type="number"
                 className="border rounded p-2"
