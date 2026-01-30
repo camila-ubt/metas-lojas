@@ -98,6 +98,12 @@ export default function AcompanhamentoPeriodoPage() {
 
   if (loading) return <div className="p-6">Carregando…</div>;
 
+  // 🔢 TOTAIS DO PERÍODO
+  const metaTotal = dados.reduce((s, d) => s + d.meta, 0);
+  const vendidoTotal = dados.reduce((s, d) => s + d.vendido, 0);
+  const pctTotal =
+    metaTotal > 0 ? (vendidoTotal / metaTotal) * 100 : 0;
+
   return (
     <main className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold capitalize">
@@ -108,6 +114,38 @@ export default function AcompanhamentoPeriodoPage() {
         {month}/{year}
       </p>
 
+      {/* 🔷 TOTAL DO PERÍODO */}
+      <div className="border rounded p-4 bg-gray-50 space-y-1">
+        <div className="font-medium">
+          Total do período ({period})
+        </div>
+
+        <div className="text-sm">
+          Meta:{" "}
+          <strong>
+            R$ {metaTotal.toLocaleString("pt-BR")}
+          </strong>
+        </div>
+
+        <div className="text-sm">
+          Vendido:{" "}
+          <strong>
+            R$ {vendidoTotal.toLocaleString("pt-BR")}
+          </strong>
+        </div>
+
+        <div
+          className={`font-semibold ${
+            pctTotal >= 100
+              ? "text-green-600"
+              : "text-red-600"
+          }`}
+        >
+          {pctTotal.toFixed(1)}% atingido
+        </div>
+      </div>
+
+      {/* 📊 TABELA POR LOJA */}
       <table className="w-full border text-sm">
         <thead className="bg-gray-100">
           <tr>
