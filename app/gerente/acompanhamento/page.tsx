@@ -12,7 +12,7 @@ type Linha = {
   vendido: number;
 };
 
-// ✅ meses com nome (padrão igual Configurações)
+// ✅ meses com nome
 const meses = [
   { value: 1, label: "Janeiro" },
   { value: 2, label: "Fevereiro" },
@@ -27,6 +27,22 @@ const meses = [
   { value: 11, label: "Novembro" },
   { value: 12, label: "Dezembro" },
 ];
+
+// 🎯 regras de meta
+const SUPER_META_MULT = 1.2; // +20%
+const MEGA_META_MULT = 1.3;  // +30%
+
+function calcularFalta(meta: number, vendido: number, mult = 1) {
+  const alvo = meta * mult;
+  return Math.max(alvo - vendido, 0);
+}
+
+function calcularStatus(meta: number, vendido: number) {
+  if (vendido >= meta * MEGA_META_MULT) return "mega";
+  if (vendido >= meta * SUPER_META_MULT) return "super";
+  if (vendido >= meta) return "meta";
+  return "abaixo";
+}
 
 export default function AcompanhamentoGerentePage() {
   const hoje = new Date();
@@ -88,12 +104,15 @@ export default function AcompanhamentoGerentePage() {
     for (const loja of lojas || []) {
       for (const period of ["manha", "noite"] as const) {
         const meta =
-          metas?.find((m) => m.store_id === loja.id && m.period === period)
-            ?.goal_value || 0;
+          metas?.find(
+            (m) => m.store_id === loja.id && m.period === period
+          )?.goal_value || 0;
 
         const vendido =
           vendas
-            ?.filter((v) => v.store_id === loja.id && v.period === period)
+            ?.filter(
+              (v) => v.store_id === loja.id && v.period === period
+            )
             .reduce((s, v) => s + Number(v.amount), 0) || 0;
 
         linhas.push({
@@ -116,9 +135,8 @@ export default function AcompanhamentoGerentePage() {
     <main className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Acompanhamento de Metas</h1>
 
-      {/* 🎛️ FILTRO */}
+      {/* 🎛️ FILTROS */}
       <div className="flex gap-3 items-center">
-        {/* ✅ MÊS COM NOME */}
         <select
           className="border rounded p-2"
           value={month}
@@ -131,7 +149,6 @@ export default function AcompanhamentoGerentePage() {
           ))}
         </select>
 
-        {/* ANO */}
         <select
           className="border rounded p-2"
           value={year}
@@ -153,20 +170,26 @@ export default function AcompanhamentoGerentePage() {
             <th className="border p-2">Período</th>
             <th className="border p-2 text-right">Meta</th>
             <th className="border p-2 text-right">Vendido</th>
-            <th className="border p-2 text-right">% Atingido</th>
+            <th className="border p-2 text-right">Falta Meta</th>
+            <th className="border p-2 text-right">Falta Super</th>
+            <th className="border p-2 text-right">Falta Mega</th>
+            <th className="border p-2 text-right">Status</th>
           </tr>
         </thead>
 
         <tbody>
           {dados.map((d, i) => {
-            const pct = d.meta > 0 ? (d.vendido / d.meta) * 100 : 0;
+            const faltaMeta = calcularFalta(d.meta, d.vendido);
+            const faltaSuper = calcularFalta(d.meta, d.vendido, SUPER_META_MULT);
+            const faltaMega = calcularFalta(d.meta, d.vendido, MEGA_META_MULT);
+            const status = calcularStatus(d.meta, d.vendido);
 
             return (
               <tr key={i}>
                 <td className="border p-2">
                   <Link
                     href={`/gerente/acompanhamento/loja/${d.store_id}?month=${month}&year=${year}`}
-                    className="text-blue-600 underline"
+                    className="text-brand-turquoise font-medium hover:text-brand-turquoiseDark transition-colors"
                   >
                     {d.store_name}
                   </Link>
@@ -175,7 +198,7 @@ export default function AcompanhamentoGerentePage() {
                 <td className="border p-2 capitalize">
                   <Link
                     href={`/gerente/acompanhamento/periodo/${d.period}?month=${month}&year=${year}`}
-                    className="underline"
+                    className="text-brand-turquoise font-medium hover:text-brand-turquoiseDark transition-colors"
                   >
                     {d.period}
                   </Link>
@@ -189,12 +212,29 @@ export default function AcompanhamentoGerentePage() {
                   R$ {d.vendido.toLocaleString("pt-BR")}
                 </td>
 
-                <td
-                  className={`border p-2 text-right font-medium ${
-                    pct >= 100 ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {pct.toFixed(1)}%
+                <td className="border p-2 text-right">
+                  {faltaMeta === 0
+                    ? <span className="text-brand-turquoise font-medium">Batida</span>
+                    : `R$ ${faltaMeta.toLocaleString("pt-BR")}`}
+                </td>
+
+                <td className="border p-2 text-right">
+                  {faltaSuper === 0
+                    ? <span className="text-brand-turquoise font-medium">Batida</span>
+                    : `R$ ${faltaSuper.toLocaleString("pt-BR")}`}
+                </td>
+
+                <td className="border p-2 text-right">
+                  {faltaMega === 0
+                    ? <span className="text-brand-turquoise font-medium">Batida</span>
+                    : `R$ ${faltaMega.toLocaleString("pt-BR")}`}
+                </td>
+
+                <td className="border p-2 text-right font-medium">
+                  {status === "mega" && "👑 Mega"}
+                  {status === "super" && "🚀 Super"}
+                  {status === "meta" && "🎯 Meta"}
+                  {status === "abaixo" && "Em progresso"}
                 </td>
               </tr>
             );
