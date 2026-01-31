@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Metas Mensal",
+  title: {
+    default: "Metas Mensal",
+    template: "%s | Metas Mensal",
+  },
   description: "Acompanhamento de metas e desempenho das lojas",
   icons: {
     icon: [

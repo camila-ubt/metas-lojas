@@ -88,19 +88,12 @@ export default function AcompanhamentoGerentePage() {
     for (const loja of lojas || []) {
       for (const period of ["manha", "noite"] as const) {
         const meta =
-          metas?.find(
-            (m) =>
-              m.store_id === loja.id &&
-              m.period === period
-          )?.goal_value || 0;
+          metas?.find((m) => m.store_id === loja.id && m.period === period)
+            ?.goal_value || 0;
 
         const vendido =
           vendas
-            ?.filter(
-              (v) =>
-                v.store_id === loja.id &&
-                v.period === period
-            )
+            ?.filter((v) => v.store_id === loja.id && v.period === period)
             .reduce((s, v) => s + Number(v.amount), 0) || 0;
 
         linhas.push({
@@ -121,9 +114,7 @@ export default function AcompanhamentoGerentePage() {
 
   return (
     <main className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">
-        Acompanhamento de Metas
-      </h1>
+      <h1 className="text-2xl font-semibold">Acompanhamento de Metas</h1>
 
       {/* 🎛️ FILTRO */}
       <div className="flex gap-3 items-center">
@@ -168,12 +159,10 @@ export default function AcompanhamentoGerentePage() {
 
         <tbody>
           {dados.map((d, i) => {
-            const pct =
-              d.meta > 0 ? (d.vendido / d.meta) * 100 : 0;
+            const pct = d.meta > 0 ? (d.vendido / d.meta) * 100 : 0;
 
             return (
               <tr key={i}>
-                {/* 🔗 LINK DA LOJA */}
                 <td className="border p-2">
                   <Link
                     href={`/gerente/acompanhamento/loja/${d.store_id}?month=${month}&year=${year}`}
@@ -183,7 +172,6 @@ export default function AcompanhamentoGerentePage() {
                   </Link>
                 </td>
 
-                {/* 🔗 LINK DO PERÍODO */}
                 <td className="border p-2 capitalize">
                   <Link
                     href={`/gerente/acompanhamento/periodo/${d.period}?month=${month}&year=${year}`}
@@ -203,9 +191,7 @@ export default function AcompanhamentoGerentePage() {
 
                 <td
                   className={`border p-2 text-right font-medium ${
-                    pct >= 100
-                      ? "text-green-600"
-                      : "text-red-600"
+                    pct >= 100 ? "text-green-600" : "text-red-600"
                   }`}
                 >
                   {pct.toFixed(1)}%

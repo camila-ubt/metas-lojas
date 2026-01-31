@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+};
+
 export default function GerentePage() {
   return (
     <div className="p-6">
