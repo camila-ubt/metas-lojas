@@ -15,6 +15,7 @@ export default function AcompanhamentoPage() {
   const [somenteRisco, setSomenteRisco] = useState(false);
 
   const [linhas, setLinhas] = useState<any[]>([]);
+  const [vendasFormatadas, setVendasFormatadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,20 +25,16 @@ export default function AcompanhamentoPage() {
   async function carregar() {
     setLoading(true);
 
-    const inicioMes = new Date(ano, mes - 1, 1)
-      .toISOString()
-      .slice(0, 10);
-
-    const fimMes = new Date(ano, mes, 0)
-      .toISOString()
-      .slice(0, 10);
+    const inicioMes = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
+    const fimMes = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
     // VENDAS
     const { data: vendas } = await supabase
-      .from("sales")
+      .from("sales_with_seller")
       .select(`
         amount,
         period,
+        seller_name,
         store:stores(id, name)
       `)
       .gte("sale_date", inicioMes)
@@ -60,6 +57,15 @@ export default function AcompanhamentoPage() {
       return;
     }
 
+    // vendas para vendedoras
+    const vendasFmt = vendas.map((v: any) => ({
+      loja: v.store.name,
+      periodo: v.period,
+      vendedora: v.seller_name,
+      vendido: v.amount ?? 0,
+    }));
+
+    // linhas com meta (loja/período)
     const resultado: any[] = [];
 
     metas.forEach((m: any) => {
@@ -80,6 +86,7 @@ export default function AcompanhamentoPage() {
     });
 
     setLinhas(resultado);
+    setVendasFormatadas(vendasFmt);
     setLoading(false);
   }
 
@@ -88,11 +95,45 @@ export default function AcompanhamentoPage() {
   const diasPassados = hoje.getDate();
   const diasMes = new Date(ano, mes, 0).getDate();
 
-  const dados = calcularAcompanhamento(linhas, diasPassados, diasMes);
+  // cálculo base (metas / lojas)
+  const dadosBase = calcularAcompanhamento(
+    linhas,
+    diasPassados,
+    diasMes
+  );
+
+  // cálculo das vendedoras (com alerta real)
+  const porVendedora: any = {};
+  vendasFormatadas.forEach(v => {
+    if (!v.vendedora) return;
+    porVendedora[v.vendedora] ??= { nome: v.vendedora, vendido: 0 };
+    porVendedora[v.vendedora].vendido += v.vendido;
+  });
+
+  const metaMedia =
+    dadosBase.geral.meta > 0
+      ? dadosBase.geral.meta / Object.keys(porVendedora).length
+      : 0;
+
+  const vendedoras = Object.values(porVendedora).map((v: any) => ({
+    nome: v.nome,
+    vendido: v.vendido,
+    alerta: metaMedia > 0 && v.vendido < metaMedia * 0.6,
+  }));
+
+  const destaque =
+    vendedoras.length > 0
+      ? [...vendedoras].sort((a, b) => b.vendido - a.vendido)[0]
+      : null;
+
+  const dados = {
+    ...dadosBase,
+    vendedoras,
+    destaque,
+  };
 
   return (
     <div className="space-y-6">
-      {/* FILTROS */}
       <div className="flex gap-6 items-center">
         <select
           value={mes}
@@ -100,22 +141,10 @@ export default function AcompanhamentoPage() {
           className="border rounded px-3 py-2"
         >
           {[
-            "Janeiro",
-            "Fevereiro",
-            "Março",
-            "Abril",
-            "Maio",
-            "Junho",
-            "Julho",
-            "Agosto",
-            "Setembro",
-            "Outubro",
-            "Novembro",
-            "Dezembro",
+            "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+            "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
           ].map((nome, index) => (
-            <option key={index} value={index + 1}>
-              {nome}
-            </option>
+            <option key={index} value={index + 1}>{nome}</option>
           ))}
         </select>
 
@@ -125,9 +154,7 @@ export default function AcompanhamentoPage() {
           className="border rounded px-3 py-2"
         >
           {[2024, 2025, 2026].map(a => (
-            <option key={a} value={a}>
-              {a}
-            </option>
+            <option key={a} value={a}>{a}</option>
           ))}
         </select>
 
@@ -141,92 +168,39 @@ export default function AcompanhamentoPage() {
         </label>
       </div>
 
-      {/* GERAL */}
       <div className="grid grid-cols-3 gap-4">
         <CardKPI titulo="Meta Geral" valor={`R$ ${dados.geral.meta}`} />
         <CardKPI titulo="Vendido" valor={`R$ ${dados.geral.vendido}`} />
         <CardKPI
           titulo="%"
-          valor={`${((dados.geral.vendido / dados.geral.meta) * 100).toFixed(1)}%`}
+          valor={
+            dados.geral.meta > 0
+              ? `${((dados.geral.vendido / dados.geral.meta) * 100).toFixed(1)}%`
+              : "0%"
+          }
         />
       </div>
 
-      {/* POR LOJA */}
       <div className="grid grid-cols-3 gap-4">
-        {Object.entries(dados.porLoja)
-          .filter(([, l]: any) => {
-            if (!somenteRisco) return true;
-            if (l.meta <= 0) return false;
-            return (l.vendido / l.meta) * 100 < 60;
-          })
-          .map(([loja, l]: any) => {
-            const pct = l.meta > 0 ? (l.vendido / l.meta) * 100 : 0;
+        {Object.entries(dados.porLoja).map(([loja, l]: any) => {
+          const pct = l.meta > 0 ? (l.vendido / l.meta) * 100 : 0;
+          if (somenteRisco && pct >= 60) return null;
 
-            return (
-              <CardKPI
-                key={loja}
-                titulo={
-                  <div className="flex items-center gap-2">
-                    {loja}
-                    <BadgeStatus percentual={pct} />
-                  </div>
-                }
-                valor={`R$ ${l.vendido} / R$ ${l.meta} • ${pct.toFixed(
-                  1
-                )}%`}
-              />
-            );
-          })}
+          return (
+            <CardKPI
+              key={loja}
+              titulo={
+                <div className="flex items-center gap-2">
+                  {loja}
+                  <BadgeStatus percentual={pct} />
+                </div>
+              }
+              valor={`R$ ${l.vendido} / R$ ${l.meta} • ${pct.toFixed(1)}%`}
+            />
+          );
+        })}
       </div>
 
-      {/* PERÍODO POR LOJA */}
-      <div className="space-y-4">
-        {Object.entries(dados.porLoja)
-          .filter(([, l]: any) => {
-            if (!somenteRisco) return true;
-            if (l.meta <= 0) return false;
-            return (l.vendido / l.meta) * 100 < 60;
-          })
-          .map(([loja]: any) => (
-            <div key={loja} className="rounded-lg border p-4 space-y-2">
-              <p className="font-semibold">{loja}</p>
-
-              <div className="grid grid-cols-2 gap-4">
-                {["manha", "noite"].map(periodo => {
-                  const linha = linhas.find(
-                    (l: any) => l.loja === loja && l.periodo === periodo
-                  );
-
-                  if (!linha) return null;
-
-                  const pct =
-                    linha.meta > 0
-                      ? (linha.vendido / linha.meta) * 100
-                      : 0;
-
-                  if (somenteRisco && pct >= 60) return null;
-
-                  return (
-                    <CardKPI
-                      key={periodo}
-                      titulo={
-                        <div className="flex items-center gap-2">
-                          {periodo === "manha" ? "Manhã" : "Noite"}
-                          <BadgeStatus percentual={pct} />
-                        </div>
-                      }
-                      valor={`R$ ${linha.vendido} / R$ ${
-                        linha.meta
-                      } • ${pct.toFixed(1)}%`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-      </div>
-
-      {/* VENDEDORAS (opcional) */}
       <div className="grid grid-cols-2 gap-4">
         {dados.destaque && (
           <CardVendedora titulo="🏆 Destaque" v={dados.destaque} />
@@ -235,7 +209,11 @@ export default function AcompanhamentoPage() {
         {dados.vendedoras
           .filter(v => v.alerta)
           .map(v => (
-            <CardVendedora key={v.nome} titulo="⚠️ Em alerta" v={v} />
+            <CardVendedora
+              key={v.nome}
+              titulo="⚠️ Em alerta"
+              v={v}
+            />
           ))}
       </div>
     </div>

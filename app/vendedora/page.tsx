@@ -24,22 +24,34 @@ export default function VendedoraPage() {
     horaFim: "",
   });
 
-  // 🔹 Carregar sessão, perfil e lojas
+  // 🔹 Carregar sessão, perfil e lojas + BLOQUEIO DE ACESSO
   useEffect(() => {
     (async () => {
       const { data: session } = await supabase.auth.getSession();
       const id = session.session?.user.id;
-      if (!id) return;
+
+      if (!id) {
+        window.location.href = "/";
+        return;
+      }
 
       setUserId(id);
 
       const { data: prof, error: profError } = await supabase
         .from("profiles")
-        .select("name, role")
+        .select("name, role, active")
         .eq("id", id)
         .single();
 
-      if (profError || !prof || prof.role !== "vendedora") {
+      // 🚫 BLOQUEIA SE NÃO FOR VENDEDORA OU SE ESTIVER INATIVA
+      if (
+        profError ||
+        !prof ||
+        prof.role !== "vendedora" ||
+        prof.active === false
+      ) {
+        await supabase.auth.signOut();
+        alert("Seu acesso foi desativado. Procure a gerência.");
         window.location.href = "/";
         return;
       }
@@ -135,11 +147,9 @@ export default function VendedoraPage() {
         amount: parseFloat(data.valor.replace(",", ".")),
       };
 
-      const { error } = await supabase
-        .from("sales")
-        .upsert([sale], {
-          onConflict: "seller_id,sale_date,store_id,period",
-        });
+      const { error } = await supabase.from("sales").upsert([sale], {
+        onConflict: "seller_id,sale_date,store_id,period",
+      });
 
       if (error) {
         setErrorMsg("Erro ao salvar venda: " + error.message);
@@ -160,7 +170,6 @@ export default function VendedoraPage() {
 
   return (
     <main className="p-6 space-y-4">
-      {/* 👋 TÍTULO COM EDITAR */}
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-semibold">Olá, {name}</h1>
 
@@ -175,7 +184,6 @@ export default function VendedoraPage() {
         </button>
       </div>
 
-      {/* 🧾 LANÇAMENTO */}
       <div className="grid gap-3 max-w-md">
         {errorMsg && (
           <div className="text-red-600 text-sm font-medium">{errorMsg}</div>
@@ -273,7 +281,6 @@ export default function VendedoraPage() {
         </button>
       </div>
 
-      {/* 🪟 MODAL EDITAR NOME */}
       {modalNomeAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div

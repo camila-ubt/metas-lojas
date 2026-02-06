@@ -1,5 +1,3 @@
-// app/gerente/relatorios/page.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -34,7 +32,12 @@ export default function RelatoriosPage() {
 
     const { data, error } = await supabase
       .from("sales")
-      .select(`amount, sale_date, stores(name), profiles(name)`);
+      .select(`
+        amount,
+        sale_date,
+        profiles ( name ),
+        stores ( name )
+      `);
 
     if (error || !data) {
       console.error("Erro ao carregar relatório:", error?.message);
@@ -42,31 +45,20 @@ export default function RelatoriosPage() {
       return;
     }
 
-    let resultado = data.map((v: any) => ({
-      loja: Array.isArray(v.stores)
-        ? v.stores[0]?.name
-        : v.stores?.name,
-
-      vendedora: Array.isArray(v.profiles)
-        ? v.profiles[0]?.name
-        : v.profiles?.name,
-
+    const resultado = data.map((v: any) => ({
+      loja: v.stores?.name ?? "",
+      vendedora: v.profiles?.name ?? "",
       valor: v.amount,
       data: v.sale_date,
     }));
 
-    if (filtroLoja) {
-      resultado = resultado.filter((r) => r.loja === filtroLoja);
-    }
-    if (filtroVendedora) {
-      resultado = resultado.filter((r) => r.vendedora === filtroVendedora);
-    }
-    if (filtroData) {
-      resultado = resultado.filter((r) => r.data === filtroData);
-    }
+    const filtrado = resultado
+      .filter((r) => !filtroLoja || r.loja === filtroLoja)
+      .filter((r) => !filtroVendedora || r.vendedora === filtroVendedora)
+      .filter((r) => !filtroData || r.data === filtroData);
 
-    setRelatorio(resultado);
-    setTotal(resultado.reduce((acc, r) => acc + r.valor, 0));
+    setRelatorio(filtrado);
+    setTotal(filtrado.reduce((acc, r) => acc + r.valor, 0));
     setLoading(false);
   }
 
@@ -93,27 +85,6 @@ export default function RelatoriosPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Relatório de Vendas</h1>
 
-      <div className="grid gap-2 grid-cols-1 md:grid-cols-3 text-sm">
-        <input
-          className="border rounded p-2"
-          placeholder="Filtrar por loja"
-          value={filtroLoja}
-          onChange={(e) => setFiltroLoja(e.target.value)}
-        />
-        <input
-          className="border rounded p-2"
-          placeholder="Filtrar por vendedora"
-          value={filtroVendedora}
-          onChange={(e) => setFiltroVendedora(e.target.value)}
-        />
-        <input
-          type="date"
-          className="border rounded p-2"
-          value={filtroData}
-          onChange={(e) => setFiltroData(e.target.value)}
-        />
-      </div>
-
       <table className="w-full border text-sm">
         <thead>
           <tr className="bg-gray-100">
@@ -125,7 +96,7 @@ export default function RelatoriosPage() {
         </thead>
         <tbody>
           {relatorio.map((linha, i) => (
-            <tr key={i} className="border-t">
+            <tr key={i}>
               <td className="p-2 border">{linha.loja}</td>
               <td className="p-2 border">{linha.vendedora}</td>
               <td className="p-2 border">{linha.data}</td>
@@ -154,25 +125,11 @@ export default function RelatoriosPage() {
       </table>
 
       <button
-        className="mt-4 px-4 py-2 border rounded hover:bg-gray-100 text-sm"
+        className="mt-4 px-4 py-2 border rounded"
         onClick={exportarExcel}
       >
         📥 Exportar para Excel
       </button>
-
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-2">Gráfico de Desempenho</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={relatorio}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="vendedora" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="valor" fill="#8884d8" name="Vendas" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
     </div>
   );
 }

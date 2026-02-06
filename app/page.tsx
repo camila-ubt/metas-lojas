@@ -22,35 +22,18 @@ export default function Home() {
       password,
     });
 
-    if (error || !data.session) {
-      setLoading(false);
-      setMsg(error?.message || "Erro ao logar");
-      return;
-    }
-
-    const userId = data.session.user.id;
-
-    // 👇 Buscar perfil pelo ID
-    const { data: prof, error: profError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .single();
-
     setLoading(false);
 
-    if (profError || !prof) {
-      setMsg("Perfil não encontrado.");
-      await supabase.auth.signOut();
+    if (error || !data.session) {
+      setMsg("Email ou senha inválidos.");
       return;
     }
 
-    // 👇 Redirecionamento com base no papel
-    if (prof.role === "gerente") {
-      router.replace("/gerente");
-    } else {
-      router.replace("/vendedora");
-    }
+    // ✅ NÃO busca profile aqui
+    // ✅ NÃO valida role aqui
+    // ✅ redireciona e deixa a rota decidir
+
+    router.replace("/gerente");
   }
 
   // 👉 CADASTRO

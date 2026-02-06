@@ -14,23 +14,27 @@ export function calcularAcompanhamento(
   const geral = { meta: 0, vendido: 0 };
 
   const porLoja: any = {};
-  const porPeriodo: any = { manha: { meta: 0, vendido: 0 }, noite: { meta: 0, vendido: 0 } };
+  const porPeriodo: any = {
+    manha: { meta: 0, vendido: 0 },
+    noite: { meta: 0, vendido: 0 },
+  };
   const porVendedora: any = {};
 
   vendas.forEach(v => {
+    // geral
     geral.meta += v.meta;
     geral.vendido += v.vendido;
 
-    // loja
+    // por loja
     porLoja[v.loja] ??= { meta: 0, vendido: 0 };
     porLoja[v.loja].meta += v.meta;
     porLoja[v.loja].vendido += v.vendido;
 
-    // periodo
+    // por período
     porPeriodo[v.periodo].meta += v.meta;
     porPeriodo[v.periodo].vendido += v.vendido;
 
-    // vendedora
+    // por vendedora
     porVendedora[v.vendedora] ??= {
       meta: 0,
       vendido: 0,
@@ -39,6 +43,7 @@ export function calcularAcompanhamento(
     };
 
     const vend = porVendedora[v.vendedora];
+
     vend.meta += v.meta;
     vend.vendido += v.vendido;
 
@@ -48,24 +53,36 @@ export function calcularAcompanhamento(
     vend.porPeriodo[v.periodo] += v.vendido;
   });
 
-  const vendedoras = Object.entries(porVendedora).map(([nome, v]: any) => {
-    const percentual = (v.vendido / v.meta) * 100;
-    const projecao = (v.vendido / diasPassados) * diasMes;
+  const vendedoras = Object.entries(porVendedora).map(
+    ([nome, v]: any) => {
+      const percentual = v.meta > 0 ? (v.vendido / v.meta) * 100 : 0;
+      const projecao =
+        diasPassados > 0 ? (v.vendido / diasPassados) * diasMes : 0;
 
-    const melhorLoja = Object.entries(v.porLoja).sort((a: any, b: any) => b[1] - a[1])[0]?.[0];
-    const melhorPeriodo = v.porPeriodo.manha >= v.porPeriodo.noite ? "manha" : "noite";
+      const melhorLoja = Object.entries(v.porLoja).sort(
+        (a: any, b: any) => b[1] - a[1]
+      )[0]?.[0];
 
-    return {
-      nome,
-      percentual,
-      projecao,
-      alerta: percentual < 60 || projecao < v.meta,
-      melhorLoja,
-      melhorPeriodo,
-    };
-  });
+      const melhorPeriodo =
+        v.porPeriodo.manha >= v.porPeriodo.noite ? "manha" : "noite";
 
-  const destaque = [...vendedoras].sort((a, b) => b.percentual - a.percentual)[0];
+      return {
+        nome,
+        vendido: v.vendido,
+        meta: v.meta,
+        percentual,
+        projecao,
+        alerta: percentual < 60 || projecao < v.meta,
+        melhorLoja,
+        melhorPeriodo,
+      };
+    }
+  );
+
+  const destaque =
+    vendedoras.length > 0
+      ? [...vendedoras].sort((a, b) => b.percentual - a.percentual)[0]
+      : null;
 
   return {
     geral,
@@ -75,3 +92,4 @@ export function calcularAcompanhamento(
     destaque,
   };
 }
+

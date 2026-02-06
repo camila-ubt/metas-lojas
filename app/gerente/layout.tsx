@@ -2,12 +2,15 @@
 
 // app/gerente/layout.tsx
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const menu = [
   { href: "/gerente/acompanhamento", label: "Acompanhamento" },
   { href: "/gerente/relatorios", label: "Relatórios" },
+
+  // 🔹 NOVO ITEM
+  { href: "/gerente/vendedoras", label: "Vendedoras" },
+
   { href: "/gerente/configuracoes", label: "Configurações" },
 ];
 
