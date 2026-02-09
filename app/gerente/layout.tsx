@@ -12,6 +12,7 @@ export default function GerenteLayout({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [menuAberto, setMenuAberto] = useState(true); // começa aberto
 
   useEffect(() => {
     async function checkRole() {
@@ -43,14 +44,24 @@ export default function GerenteLayout({
   if (loading) return null;
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 border-r p-4 bg-white">
-        <MenuGerente />
-      </aside>
+    <div className="min-h-screen relative">
+      {/* BOTÃO ☰ SEMPRE VISÍVEL */}
+      <button
+        onClick={() => setMenuAberto(true)}
+        className="fixed top-4 left-4 z-40 p-2 rounded hover:bg-gray-100"
+        aria-label="Abrir menu"
+      >
+        ☰
+      </button>
 
-      <main className="flex-1 p-6 bg-gray-50">
-        {children}
-      </main>
+      {/* MENU EM TELA CHEIA */}
+      <MenuGerente
+        aberto={menuAberto}
+        fechar={() => setMenuAberto(false)}
+      />
+
+      {/* CONTEÚDO OCUPA A TELA TODA */}
+      <main className="p-6">{children}</main>
     </div>
   );
 }
