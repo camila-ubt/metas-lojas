@@ -10,7 +10,7 @@ type Props = {
   topOffset: number;
 };
 
-export default function MenuGerente({
+export default function MenuVendedora({
   aberto,
   fechar,
   topOffset,
@@ -68,20 +68,17 @@ export default function MenuGerente({
     >
       {/* CABEÇALHO DO MENU */}
       <div className="mb-6 text-center">
-        <p className="text-sm text-gray-500">Gerente</p>
+        <p className="text-sm text-gray-500">Vendedora</p>
         <p className="text-lg font-semibold">
           {nome || "—"}
         </p>
       </div>
 
+      {/* ITENS DA VENDEDORA */}
       <div className="w-full max-w-sm space-y-2">
-        <Item label="Acompanhamento" href="/gerente/acompanhamento" />
-        <Item label="Relatórios" href="/gerente/relatorios" />
-        <Item
-          label="Configurações de Metas"
-          href="/gerente/configuracoes"
-        />
-        <Item label="Escala do mês" href="/gerente/escala" />
+        <Item label="Lançar vendas" href="/vendedora" />
+        {/* futuro */}
+        {/* <Item label="Meu desempenho" href="/vendedora/desempenho" /> */}
       </div>
 
       <button

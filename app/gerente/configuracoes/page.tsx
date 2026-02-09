@@ -55,11 +55,11 @@ export default function ConfiguracoesPage() {
   async function salvar() {
     for (const loja of stores) {
       for (const period of ["manha", "noite"]) {
-        const value = document.getElementById(
+        const input = document.getElementById(
           `goal-${loja.id}-${period}`
-        ) as HTMLInputElement;
+        ) as HTMLInputElement | null;
 
-        if (!value) continue;
+        if (!input) continue;
 
         await supabase.from("store_period_goals").upsert(
           {
@@ -67,7 +67,7 @@ export default function ConfiguracoesPage() {
             period,
             month,
             year,
-            goal_value: Number(value.value),
+            goal_value: Number(input.value),
           },
           {
             onConflict: "store_id,period,month,year",
@@ -79,17 +79,14 @@ export default function ConfiguracoesPage() {
     alert("Metas salvas com sucesso!");
   }
 
-  if (loading) return <div className="p-6">Carregando…</div>;
+  if (loading) return <div>Carregando…</div>;
 
   return (
-    <main className="space-y-6">
-      <h1 className="text-2xl font-semibold">
-        Metas por Loja e Turno
-      </h1>
+    <div className="space-y-6">
+      {/* TÍTULO REMOVIDO — agora fica no header */}
 
       {/* 🎛️ Filtro mês/ano */}
       <div className="flex gap-3 items-center">
-        {/* ✅ MÊS COM NOME */}
         <select
           className="border rounded p-2"
           value={month}
@@ -102,7 +99,6 @@ export default function ConfiguracoesPage() {
           ))}
         </select>
 
-        {/* ANO */}
         <select
           className="border rounded p-2"
           value={year}
@@ -129,13 +125,15 @@ export default function ConfiguracoesPage() {
           const metaManha =
             goals.find(
               (g) =>
-                g.store_id === loja.id && g.period === "manha"
+                g.store_id === loja.id &&
+                g.period === "manha"
             )?.goal_value || 0;
 
           const metaNoite =
             goals.find(
               (g) =>
-                g.store_id === loja.id && g.period === "noite"
+                g.store_id === loja.id &&
+                g.period === "noite"
             )?.goal_value || 0;
 
           return (
@@ -172,6 +170,6 @@ export default function ConfiguracoesPage() {
           );
         })}
       </div>
-    </main>
+    </div>
   );
 }

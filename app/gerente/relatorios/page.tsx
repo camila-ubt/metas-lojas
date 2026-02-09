@@ -4,16 +4,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 
 export default function RelatoriosPage() {
   const [loading, setLoading] = useState(true);
@@ -25,6 +15,7 @@ export default function RelatoriosPage() {
 
   useEffect(() => {
     carregarRelatorio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroLoja, filtroVendedora, filtroData]);
 
   async function carregarRelatorio() {
@@ -48,7 +39,7 @@ export default function RelatoriosPage() {
     const resultado = data.map((v: any) => ({
       loja: v.stores?.name ?? "",
       vendedora: v.profiles?.name ?? "",
-      valor: v.amount,
+      valor: v.amount ?? 0,
       data: v.sale_date,
     }));
 
@@ -79,11 +70,11 @@ export default function RelatoriosPage() {
     saveAs(blob, "relatorio-vendas.xlsx");
   }
 
-  if (loading) return <div className="p-6">Carregando relatório…</div>;
+  if (loading) return <div>Carregando relatório…</div>;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Relatório de Vendas</h1>
+      {/* TÍTULO REMOVIDO — agora fica no header */}
 
       <table className="w-full border text-sm">
         <thead>
@@ -94,6 +85,7 @@ export default function RelatoriosPage() {
             <th className="text-left p-2 border">Total vendido (R$)</th>
           </tr>
         </thead>
+
         <tbody>
           {relatorio.map((linha, i) => (
             <tr key={i}>
@@ -109,6 +101,7 @@ export default function RelatoriosPage() {
             </tr>
           ))}
         </tbody>
+
         <tfoot>
           <tr className="font-semibold bg-gray-50">
             <td className="p-2 border" colSpan={3}>
@@ -125,7 +118,7 @@ export default function RelatoriosPage() {
       </table>
 
       <button
-        className="mt-4 px-4 py-2 border rounded"
+        className="px-4 py-2 border rounded"
         onClick={exportarExcel}
       >
         📥 Exportar para Excel
