@@ -1,16 +1,21 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function MenuGerente() {
   const router = useRouter();
   const pathname = usePathname();
+
   const [aberto, setAberto] = useState(true);
 
-  function irPara(href: string) {
+  // 🔹 fecha o menu sempre que a rota mudar
+  useEffect(() => {
+    setAberto(false);
+  }, [pathname]);
+
+  function navegar(href: string) {
     router.push(href);
-    setAberto(false); // fecha após navegar
   }
 
   function Item({
@@ -24,8 +29,8 @@ export default function MenuGerente() {
 
     return (
       <button
-        onClick={() => irPara(href)}
-        className={`w-full text-left px-3 py-2 rounded text-sm ${
+        onClick={() => navegar(href)}
+        className={`w-full text-left px-3 py-2 rounded text-sm transition ${
           ativo
             ? "bg-black text-white"
             : "text-gray-700 hover:bg-gray-100"
@@ -37,8 +42,8 @@ export default function MenuGerente() {
   }
 
   return (
-    <>
-      {/* BOTÃO ☰ SEMPRE VISÍVEL */}
+    <div className="relative">
+      {/* BOTÃO ☰ — SEMPRE VISÍVEL */}
       <button
         onClick={() => setAberto(!aberto)}
         className="mb-4 p-2 rounded hover:bg-gray-100"
@@ -58,6 +63,6 @@ export default function MenuGerente() {
           <Item label="Escala do mês" href="/gerente/escala" />
         </nav>
       )}
-    </>
+    </div>
   );
 }
