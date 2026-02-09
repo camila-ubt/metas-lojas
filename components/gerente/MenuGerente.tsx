@@ -1,27 +1,21 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 type Props = {
   aberto: boolean;
   fechar: () => void;
+  topOffset: number;
 };
 
-export default function MenuGerente({ aberto, fechar }: Props) {
+export default function MenuGerente({ aberto, fechar, topOffset }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-
-  // fecha o menu sempre que mudar a rota
-  useEffect(() => {
-    if (aberto) fechar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
 
   if (!aberto) return null;
 
   function irPara(href: string) {
-    router.push(href);
+    fechar();          // 🔴 FECHA IMEDIATAMENTE
+    router.push(href); // depois navega
   }
 
   function Item({ label, href }: { label: string; href: string }) {
@@ -36,7 +30,10 @@ export default function MenuGerente({ aberto, fechar }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center space-y-4">
+    <div
+      className="fixed left-0 right-0 bottom-0 z-50 bg-white flex flex-col items-center justify-center"
+      style={{ top: topOffset }}
+    >
       <h1 className="text-2xl font-semibold mb-6">Menu Gerente</h1>
 
       <div className="w-full max-w-sm space-y-2">

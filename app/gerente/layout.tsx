@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import MenuGerente from "@/components/gerente/MenuGerente";
 
+const HEADER_HEIGHT = 56; // altura real do header
+
 export default function GerenteLayout({
   children,
 }: {
@@ -12,7 +14,7 @@ export default function GerenteLayout({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [menuAberto, setMenuAberto] = useState(true); // começa aberto
+  const [menuAberto, setMenuAberto] = useState(true);
 
   useEffect(() => {
     async function checkRole() {
@@ -44,24 +46,35 @@ export default function GerenteLayout({
   if (loading) return null;
 
   return (
-    <div className="min-h-screen relative">
-      {/* BOTÃO ☰ SEMPRE VISÍVEL */}
-      <button
-        onClick={() => setMenuAberto(true)}
-        className="fixed top-4 left-4 z-40 p-2 rounded hover:bg-gray-100"
-        aria-label="Abrir menu"
+    <div className="min-h-screen bg-gray-50">
+      {/* HEADER FIXO */}
+      <header
+        className="fixed top-0 left-0 right-0 z-40 flex items-center bg-white border-b px-4"
+        style={{ height: HEADER_HEIGHT }}
       >
-        ☰
-      </button>
+        <button
+          onClick={() => setMenuAberto(true)}
+          className="p-2 rounded hover:bg-gray-100"
+          aria-label="Abrir menu"
+        >
+          ☰
+        </button>
+      </header>
 
-      {/* MENU EM TELA CHEIA */}
+      {/* MENU OVERLAY */}
       <MenuGerente
         aberto={menuAberto}
         fechar={() => setMenuAberto(false)}
+        topOffset={HEADER_HEIGHT}
       />
 
-      {/* CONTEÚDO OCUPA A TELA TODA */}
-      <main className="p-6">{children}</main>
+      {/* CONTEÚDO — SEMPRE ABAIXO DO HEADER */}
+      <main
+        className="px-4 pb-6"
+        style={{ paddingTop: HEADER_HEIGHT + 16 }}
+      >
+        {children}
+      </main>
     </div>
   );
 }
