@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import MenuGerente from "@/components/gerente/MenuGerente";
 
-export default function GerenteLayout({
+export default function VendedoraLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -29,8 +28,8 @@ export default function GerenteLayout({
         .eq("id", user.id)
         .single();
 
-      if (profile?.role !== "gerente") {
-        router.replace("/vendedora");
+      if (profile?.role !== "vendedora") {
+        router.replace("/gerente");
         return;
       }
 
@@ -42,15 +41,5 @@ export default function GerenteLayout({
 
   if (loading) return null;
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 border-r p-4 bg-white">
-        <MenuGerente />
-      </aside>
-
-      <main className="flex-1 p-6 bg-gray-50">
-        {children}
-      </main>
-    </div>
-  );
+  return <>{children}</>;
 }

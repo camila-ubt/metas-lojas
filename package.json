@@ -10,6 +10,8 @@
     "deploy": "git add . && git commit -m \"Auto: atualização\" && git push"
   },
   "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.15.0",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
     "file-saver": "^2.0.5",
     "next": "^16.1.3",

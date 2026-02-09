@@ -24,40 +24,23 @@ export default function VendedoraPage() {
     horaFim: "",
   });
 
-  // 🔹 Carregar sessão, perfil e lojas + BLOQUEIO DE ACESSO
+  // 🔹 carregar dados (SEM BLOQUEIO)
   useEffect(() => {
     (async () => {
       const { data: session } = await supabase.auth.getSession();
       const id = session.session?.user.id;
-
-      if (!id) {
-        window.location.href = "/";
-        return;
-      }
+      if (!id) return;
 
       setUserId(id);
 
-      const { data: prof, error: profError } = await supabase
+      const { data: prof } = await supabase
         .from("profiles")
-        .select("name, role, active")
+        .select("name")
         .eq("id", id)
         .single();
 
-      // 🚫 BLOQUEIA SE NÃO FOR VENDEDORA OU SE ESTIVER INATIVA
-      if (
-        profError ||
-        !prof ||
-        prof.role !== "vendedora" ||
-        prof.active === false
-      ) {
-        await supabase.auth.signOut();
-        alert("Seu acesso foi desativado. Procure a gerência.");
-        window.location.href = "/";
-        return;
-      }
-
-      setName(prof.name ?? "");
-      setNameEdit(prof.name ?? "");
+      setName(prof?.name ?? "");
+      setNameEdit(prof?.name ?? "");
 
       const { data: st } = await supabase
         .from("stores")
@@ -71,7 +54,7 @@ export default function VendedoraPage() {
     })();
   }, []);
 
-  // ✏️ SALVAR NOME DA VENDEDORA
+  // ✏️ salvar nome
   async function salvarNome() {
     if (!nameEdit.trim()) {
       alert("O nome não pode ficar vazio.");
@@ -85,14 +68,13 @@ export default function VendedoraPage() {
 
     if (error) {
       alert("Erro ao atualizar nome.");
-      console.error(error);
     } else {
       setName(nameEdit.trim());
       setModalNomeAberto(false);
     }
   }
 
-  // 💾 SALVAR LANÇAMENTO
+  // 💾 salvar lançamento
   async function salvar() {
     setErrorMsg("");
 
@@ -100,11 +82,11 @@ export default function VendedoraPage() {
 
     if (data.periodo === "personalizado") {
       if (!data.horaInicio || !data.horaFim) {
-        setErrorMsg("Preencha os horários de início e fim.");
+        setErrorMsg("Preencha os horários.");
         return;
       }
       if (data.horaFim <= data.horaInicio) {
-        setErrorMsg("O horário de fim deve ser após o início.");
+        setErrorMsg("Horário final inválido.");
         return;
       }
     }
@@ -130,7 +112,7 @@ export default function VendedoraPage() {
       );
 
       if (error) {
-        setErrorMsg("Erro ao salvar dia: " + error.message);
+        setErrorMsg(error.message);
         return;
       }
     } else if (parseFloat(data.valor.replace(",", ".")) > 0) {
@@ -139,20 +121,21 @@ export default function VendedoraPage() {
           ? `${data.horaInicio} às ${data.horaFim}`
           : data.periodo;
 
-      const sale = {
-        seller_id: sellerId,
-        store_id: data.loja,
-        sale_date: data.dia,
-        period,
-        amount: parseFloat(data.valor.replace(",", ".")),
-      };
-
-      const { error } = await supabase.from("sales").upsert([sale], {
-        onConflict: "seller_id,sale_date,store_id,period",
-      });
+      const { error } = await supabase.from("sales").upsert(
+        [
+          {
+            seller_id: sellerId,
+            store_id: data.loja,
+            sale_date: data.dia,
+            period,
+            amount: parseFloat(data.valor.replace(",", ".")),
+          },
+        ],
+        { onConflict: "seller_id,sale_date,store_id,period" }
+      );
 
       if (error) {
-        setErrorMsg("Erro ao salvar venda: " + error.message);
+        setErrorMsg(error.message);
         return;
       }
     }
@@ -189,7 +172,7 @@ export default function VendedoraPage() {
           <div className="text-red-600 text-sm font-medium">{errorMsg}</div>
         )}
 
-        <label className="text-sm font-medium">Dia</label>
+        <label>Dia</label>
         <input
           type="date"
           className="border rounded p-2"
@@ -199,7 +182,7 @@ export default function VendedoraPage() {
           }
         />
 
-        <label className="text-sm font-medium">Loja</label>
+        <label>Loja</label>
         <select
           className="border rounded p-2"
           value={data.loja}
@@ -214,7 +197,7 @@ export default function VendedoraPage() {
           ))}
         </select>
 
-        <label className="text-sm font-medium">Período</label>
+        <label>Período</label>
         <select
           className="border rounded p-2"
           value={data.periodo}
@@ -249,7 +232,7 @@ export default function VendedoraPage() {
           </div>
         )}
 
-        <label className="text-sm font-medium">Valor vendido (R$)</label>
+        <label>Valor vendido (R$)</label>
         <input
           type="number"
           step="0.01"
@@ -260,7 +243,7 @@ export default function VendedoraPage() {
           }
         />
 
-        <label className="text-sm font-medium">Tipo de dia</label>
+        <label>Tipo de dia</label>
         <select
           className="border rounded p-2"
           value={data.tipoDia}
